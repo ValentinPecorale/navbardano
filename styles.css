@@ -552,7 +552,27 @@ body {
   align-items: center;
   justify-content: center;
   gap: 11px;
+  /* Fallback for no-JS / prefers-reduced-motion / WebGL-unavailable, where
+     shader-fluid-cms.js never mounts the canvas below. */
   background: #f51313;
+}
+
+/* Pixelation + dithering + fluid sim (shader-fluid-cms.js), ported from
+   @basementstudio/shader-lab. Sits above the flat red fallback above and
+   below the section's own content. */
+.bg-shader-cms {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+  display: block;
+}
+
+.viewport-wrapper[data-viewport-wrapper-cms] > *:not(.bg-shader-cms) {
+  position: relative;
+  z-index: 1;
 }
 
 .viewport-wrapper .footer-credit {
@@ -568,6 +588,12 @@ body {
   min-height: 0;
   display: flex;
   align-items: center;
+  /* .wrapper has no interactive content of its own (song-collection is
+     plain text), but its flex box still spans nearly the whole section and
+     paints above #gallery -- pointer-events:none lets drag/wheel/click
+     reach the gallery underneath even where the song list visually
+     overlaps it, so the gallery stays interactive with both layers shown. */
+  pointer-events: none;
 }
 
 .song-collection {
@@ -625,4 +651,230 @@ body {
   letter-spacing: -0.6px;
   text-transform: uppercase;
   text-align: justify;
+}
+
+/* Infinite gallery -- ported from infinitegallerytraining, scoped to sit
+   over the CMS section's red shader background (see .viewport-wrapper's
+   #f51313 fallback above) instead of the whole browser viewport. The
+   source project positions #gallery/#hint/#coords with `fixed`; here
+   they're `absolute` against .viewport-wrapper[data-viewport-wrapper-cms]
+   (position:relative, overflow:hidden) so the gallery stays clipped to
+   that section instead of bleeding through while it's is-collapsed. Left
+   in normal document order before .wrapper so .song-collection's text
+   paints on top of the tiles at the shared z-index:1 from the rule above,
+   per "both should be visible" -- the gallery reads as a moving backdrop
+   behind the song list rather than replacing it. */
+#gallery {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+#gallery.dragging {
+  cursor: grabbing;
+}
+
+#canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+}
+
+.tile {
+  position: absolute;
+  top: 0;
+  left: 0;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+}
+
+.tile-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #ddd;
+}
+
+.tile img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  -webkit-user-drag: none;
+  user-select: none;
+  pointer-events: none;
+  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tile:hover img {
+  transform: scale(1.06);
+}
+
+.tile-caption {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #fff;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+.tile:hover .tile-caption {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Click-to-rotate photo stack -- one tile in the wallpaper shows a stack of
+   extra images instead of the normal cycling set. Cards peek out past the
+   front photo's edges, so tile-inner can't clip to bounds here the way it
+   does for every other tile. */
+.tile.stack .tile-inner {
+  overflow: visible;
+  perspective: 900px;
+  background: none;
+}
+
+.stack-3d {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transform: rotateY(0deg);
+  transition: transform 0.2s ease-out;
+  will-change: transform;
+}
+
+.stack-card {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-color: #ddd;
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.22);
+}
+
+.stack-card.back-1 {
+  transform: translateZ(-18px);
+}
+
+.stack-card.back-2 {
+  transform: translateZ(-36px);
+}
+
+.tile.stack img {
+  transition: transform 0.42s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.42s ease;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22);
+}
+
+.tile.stack:hover img {
+  transform: none;
+}
+
+.tile.stack img.stack-exit {
+  transform: translateZ(-54px) translateY(20px) scale(0.9);
+  opacity: 0;
+}
+
+.tile.stack img.stack-enter {
+  transition: none;
+  transform: translateZ(-18px) scale(0.94);
+  opacity: 0.6;
+}
+
+/* Fisheye video -- the <video> is only ever a decode source for the WebGL
+   canvas (drawFisheyeFrame() in infinite-gallery.js copies its frames
+   through the lens-bulge shader every frame), so it stays invisible in the
+   DOM. */
+.video-fisheye-source {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.video-fisheye-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tile.video:hover .video-fisheye-canvas {
+  transform: scale(1.06);
+}
+
+/* Item 1 vhs -- the 3D-rendered VHS tape (setupVhs()/vhsTick() in
+   infinite-gallery.js). Same hover-scale language as the other tile
+   types above. tile-inner's default #ddd loading-state fallback (see
+   above) would otherwise show through the canvas's transparent clear
+   color as a flat gray box behind the model. */
+.tile.vhs .tile-inner {
+  background: none;
+}
+
+.vhs-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tile.vhs:hover .vhs-canvas {
+  transform: scale(1.06);
+}
+
+/* #hint/#coords: white instead of the source project's black, since this
+   section's background is #f51313 red rather than the source's light
+   #f2f1ee -- black text at low opacity would be near-invisible here. */
+#hint {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fff;
+  opacity: 0.6;
+  pointer-events: none;
+  transition: opacity 0.6s ease;
+  z-index: 2;
+}
+
+#hint.hidden {
+  opacity: 0;
+}
+
+#coords {
+  position: absolute;
+  top: 20px;
+  left: 24px;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: #fff;
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: 2;
+  font-variant-numeric: tabular-nums;
 }

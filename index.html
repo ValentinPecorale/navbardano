@@ -15,6 +15,14 @@
     rel="stylesheet"
   />
   <link rel="stylesheet" href="styles.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.183.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.183.0/examples/jsm/"
+      }
+    }
+  </script>
 </head>
 <body>
   <nav class="navbar" aria-label="Principal">
@@ -243,6 +251,14 @@
   </div>
 
   <div class="viewport-wrapper is-collapsed" data-viewport-wrapper-cms>
+    <canvas class="bg-shader-cms" data-bg-shader-cms aria-hidden="true"></canvas>
+
+    <div id="gallery">
+      <div id="canvas"></div>
+    </div>
+    <div id="hint">scroll to explore</div>
+    <div id="coords"></div>
+
     <div class="wrapper">
       <div class="song-collection">
         <div class="song-list">
@@ -280,5 +296,9 @@
   </div>
 
   <script src="script.js"></script>
+  <!-- Fluid shader disabled for now -- re-enable by uncommenting. Flat #f51313
+       fallback (styles.css) shows in its place. -->
+  <!-- <script type="module" src="shader-fluid-cms.js"></script> -->
+  <script type="module" src="infinite-gallery.js"></script>
 </body>
 </html>
