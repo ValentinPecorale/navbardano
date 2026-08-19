@@ -844,6 +844,26 @@ body {
   transform: scale(1.06);
 }
 
+/* Item 4 vinyl -- the 3D-rendered vinyl record (setupVinyl()/vinylTick()
+   in infinite-gallery.js). Same hover-scale language and tile-inner
+   background reset as item 1 vhs above. */
+.tile.vinyl .tile-inner {
+  background: none;
+}
+
+.vinyl-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tile.vinyl:hover .vinyl-canvas {
+  transform: scale(1.06);
+}
+
 /* #hint/#coords: white instead of the source project's black, since this
    section's background is #f51313 red rather than the source's light
    #f2f1ee -- black text at low opacity would be near-invisible here. */
