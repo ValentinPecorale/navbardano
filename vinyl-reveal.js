@@ -308,10 +308,19 @@ function createStrokeSnapshotTexture(gl, domElement, sourceRef, isEnabledFn) {
   let pending = false;
 
   const onPointerDown = (e) => {
+    // Touch is driven exclusively by the touch-gesture controller's
+    // onPaintStart callback (markPending below) -- a second finger landing
+    // also satisfies button===0 and would otherwise re-mark a stroke as
+    // pending mid-rotate.
+    if (e.pointerType === "touch") return;
     if (e.button !== 0 || !isEnabledFn()) return;
     pending = true;
   };
   domElement.addEventListener("pointerdown", onPointerDown);
+
+  function markPending() {
+    pending = true;
+  }
 
   function update() {
     if (!pending) return;
@@ -347,10 +356,24 @@ function createStrokeSnapshotTexture(gl, domElement, sourceRef, isEnabledFn) {
 // while this gallery tile is the focused one (same convention as the vhs
 // tile's cursor-tilt). Unclamped on the spin (y) axis, clamped on pitch
 // (x), matching vinylprocess's own useManualOrbit exactly.
+//
+// `applyDelta` is exposed separately so the touch-gesture controller can
+// drive the same rotation math from a two-finger touch drag, which has no
+// mouse button to gate on.
 function createManualOrbit(domElement, group, isEnabledFn) {
   let dragging = false;
   let lastX = 0;
   let lastY = 0;
+
+  function applyDelta(dx, dy) {
+    if (!group) return;
+    group.rotation.y += dx * ROTATE_SPEED;
+    group.rotation.x = THREE.MathUtils.clamp(
+      group.rotation.x + dy * ROTATE_SPEED,
+      -ROTATE_PITCH_LIMIT,
+      ROTATE_PITCH_LIMIT
+    );
+  }
 
   const onPointerDown = (e) => {
     if (e.button !== 2 || !isEnabledFn()) return;
@@ -359,17 +382,12 @@ function createManualOrbit(domElement, group, isEnabledFn) {
     lastY = e.clientY;
   };
   const onPointerMove = (e) => {
-    if (!dragging || !group) return;
+    if (!dragging) return;
     const dx = e.clientX - lastX;
     const dy = e.clientY - lastY;
     lastX = e.clientX;
     lastY = e.clientY;
-    group.rotation.y += dx * ROTATE_SPEED;
-    group.rotation.x = THREE.MathUtils.clamp(
-      group.rotation.x + dy * ROTATE_SPEED,
-      -ROTATE_PITCH_LIMIT,
-      ROTATE_PITCH_LIMIT
-    );
+    applyDelta(dx, dy);
   };
   const onPointerUp = () => {
     dragging = false;
@@ -383,12 +401,128 @@ function createManualOrbit(domElement, group, isEnabledFn) {
   window.addEventListener("pointerup", onPointerUp);
   domElement.addEventListener("contextmenu", onContextMenu);
 
-  return function dispose() {
+  function dispose() {
     domElement.removeEventListener("pointerdown", onPointerDown);
     window.removeEventListener("pointermove", onPointerMove);
     window.removeEventListener("pointerup", onPointerUp);
     domElement.removeEventListener("contextmenu", onContextMenu);
-  };
+  }
+
+  return { dispose, applyDelta };
+}
+
+// Touch-only gesture controller: one finger paints (locking scroll via
+// CSS touch-action on the gallery/tile), a second finger switches to
+// rotate. Mouse/pen are untouched -- they keep using button-gated
+// listeners in createManualOrbit/createStrokeSnapshotTexture above.
+//
+// Two listener scopes, same split as createManualOrbit's mouse path:
+//  - `wrapperEl`, capture phase: decides whether an event may reach the
+//    fluid-paint canvas at all (must run before FluidPass's own listener).
+//  - `window`: tracks finger positions/deltas so a finger that drags
+//    outside the tile's bounds is still tracked, matching mouse behavior.
+function createTouchGestureController(wrapperEl, canvasEl, isEnabledFn, { onPaintStart, onRotateMove }) {
+  const touches = new Map(); // pointerId -> {x, y}
+  let mode = "idle"; // 'idle' | 'paint' | 'rotate'
+  let primaryId = null;
+
+  function onWrapperPointerDownCapture(event) {
+    // Mouse pointerdown was never gated here before (only pointermove was,
+    // via the old blockHoverPaint) -- leave that behavior exactly as-is.
+    if (event.pointerType !== "touch") return;
+    // Not focused: don't track or block anything, so an unfocused tile's
+    // normal touch-drag-to-scroll-the-gallery behavior is untouched (same
+    // rationale as createManualOrbit/createStrokeSnapshotTexture gating
+    // drag-start on isEnabledFn() rather than gating every move).
+    if (!isEnabledFn()) return;
+    const wasEmpty = touches.size === 0;
+    touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (wasEmpty) {
+      primaryId = event.pointerId;
+      mode = "paint";
+      onPaintStart();
+      // First finger's own touchdown is a legitimate first stroke sample --
+      // let it through.
+      return;
+    }
+    if (touches.size === 2) {
+      mode = "rotate";
+    }
+    // Any touchdown beyond the first (the 2nd finger landing, or a stray
+    // 3rd+) must never reach the fluid canvas as a paint sample.
+    event.stopPropagation();
+  }
+
+  function onWrapperPointerMoveCapture(event) {
+    if (event.pointerType !== "touch") {
+      if (event.buttons === 0 || !isEnabledFn()) event.stopPropagation();
+      return;
+    }
+    if (mode === "rotate" || !isEnabledFn()) event.stopPropagation();
+  }
+
+  function endTouch(pointerId) {
+    if (!touches.has(pointerId)) return;
+    const wasRotating = mode === "rotate";
+    touches.delete(pointerId);
+
+    if (touches.size === 0) {
+      mode = "idle";
+      primaryId = null;
+      return;
+    }
+
+    if (wasRotating) {
+      // Dropping back to one finger: resume painting immediately with the
+      // remaining finger. FluidPass tracks a single shared
+      // lastPointerX/lastPointerY, reset to null only on `pointerleave` --
+      // since every touch event was blocked from it during rotate, that
+      // state is stale (last real value came from the primary finger,
+      // before the 2nd finger landed). A synthetic pointerleave nulls it,
+      // so the remaining finger's next real pointermove just re-anchors
+      // position instead of diffing against stale coordinates and
+      // splatting a spurious jump.
+      if (canvasEl) {
+        canvasEl.dispatchEvent(new PointerEvent("pointerleave", { bubbles: false, cancelable: false }));
+      }
+      const remaining = touches.keys().next().value;
+      primaryId = remaining;
+      mode = "paint";
+    }
+  }
+
+  function onWindowPointerMove(event) {
+    if (event.pointerType !== "touch") return;
+    if (!touches.has(event.pointerId)) return;
+    const last = touches.get(event.pointerId);
+    const dx = event.clientX - last.x;
+    const dy = event.clientY - last.y;
+    touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (mode === "rotate" && event.pointerId === primaryId) {
+      onRotateMove(dx, dy);
+    }
+  }
+
+  function onWindowPointerUp(event) {
+    if (event.pointerType !== "touch") return;
+    endTouch(event.pointerId);
+  }
+
+  wrapperEl.addEventListener("pointerdown", onWrapperPointerDownCapture, true);
+  wrapperEl.addEventListener("pointermove", onWrapperPointerMoveCapture, true);
+  window.addEventListener("pointermove", onWindowPointerMove);
+  window.addEventListener("pointerup", onWindowPointerUp);
+  window.addEventListener("pointercancel", onWindowPointerUp);
+
+  function dispose() {
+    wrapperEl.removeEventListener("pointerdown", onWrapperPointerDownCapture, true);
+    wrapperEl.removeEventListener("pointermove", onWrapperPointerMoveCapture, true);
+    window.removeEventListener("pointermove", onWindowPointerMove);
+    window.removeEventListener("pointerup", onWindowPointerUp);
+    window.removeEventListener("pointercancel", onWindowPointerUp);
+  }
+
+  return { dispose };
 }
 
 function loadImageTexture(src, onLoad) {
@@ -473,7 +607,8 @@ export function createVinylReveal({
   let mask1 = null;
   let mask2GateHandle = null;
   let mask2 = null;
-  let orbitDispose = null;
+  let orbitHandle = null;
+  let touchGestureHandle = null;
   let framed = false;
   let wasFocused = false;
   let focusStartedAt = null;
@@ -585,18 +720,12 @@ export function createVinylReveal({
     })
   );
 
-  // The fluid library's own FluidPass splats on every pointermove it sees,
-  // regardless of button state -- there's no config for "only while
-  // dragging", and no concept of this gallery's own focus state. Stopping
-  // propagation one level up, on the wrapper, during the capture phase
-  // runs before the event ever reaches its canvas -- also gates the whole
-  // paint interaction behind `isFocusedFn`, so hovering the tile while
-  // scrolling the wallpaper never paints.
-  const blockHoverPaint = (event) => {
-    if (event.buttons === 0 || !isFocusedFn()) event.stopPropagation();
-  };
-  fluidWrapperEl.addEventListener("pointermove", blockHoverPaint, true);
-
+  // The fluid library's own FluidPass splats on every pointermove/pointerdown
+  // it sees, regardless of button state -- there's no config for "only
+  // while dragging", and no concept of this gallery's own focus state.
+  // createTouchGestureController owns the wrapper-capture interception that
+  // gates this (mouse hover-paint gating + touch 1-finger-paint/2-finger-
+  // rotate disambiguation), replacing the old standalone blockHoverPaint.
   let maskCanvas = null;
   Promise.all([rendererInit, waitForChildCanvas(fluidWrapperEl)]).then(([, canvasEl]) => {
     if (disposed) return;
@@ -613,7 +742,11 @@ export function createVinylReveal({
       gateRef: mask2GateHandle.snapshotRef,
     });
 
-    orbitDispose = createManualOrbit(maskCanvas, group, isFocusedFn);
+    orbitHandle = createManualOrbit(maskCanvas, group, isFocusedFn);
+    touchGestureHandle = createTouchGestureController(fluidWrapperEl, canvasEl, isFocusedFn, {
+      onPaintStart: () => mask2GateHandle.markPending(),
+      onRotateMove: (dx, dy) => orbitHandle.applyDelta(dx, dy),
+    });
 
     tryBuildMaterials(gltfSceneRef.current);
   });
@@ -668,8 +801,8 @@ export function createVinylReveal({
 
   function dispose() {
     disposed = true;
-    fluidWrapperEl.removeEventListener("pointermove", blockHoverPaint, true);
-    if (orbitDispose) orbitDispose();
+    if (touchGestureHandle) touchGestureHandle.dispose();
+    if (orbitHandle) orbitHandle.dispose();
     if (mask1) mask1.dispose();
     if (mask2GateHandle) mask2GateHandle.dispose();
     if (mask2) mask2.dispose();

@@ -861,6 +861,10 @@ body {
   inset: 0;
   z-index: 10;
   opacity: 0;
+  /* Redundant with #gallery's own touch-action: none (inherited), but
+     explicit here so the 1-finger-paint/2-finger-rotate gesture split
+     doesn't depend on a rule declared elsewhere staying in sync. */
+  touch-action: none;
 }
 
 .vinyl-canvas {
@@ -870,6 +874,7 @@ body {
   height: 100%;
   display: block;
   transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  touch-action: none;
 }
 
 .tile.vinyl:hover .vinyl-canvas {

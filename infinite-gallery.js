@@ -1080,6 +1080,12 @@ import { createVinylReveal } from "./vinyl-reveal.js";
     // entirely for gestures starting on the focused vinyl tile avoids
     // both problems at once; a later click actually outside the tile is
     // a separate gesture and still exits focus normally.
+    // Also covers touch: a 2nd finger's touchdown while the vinyl tile is
+    // focused is a rotate gesture, not a gallery drag, so it must bypass
+    // here too. A press-drag on the tile *before* it's focused still falls
+    // through to the normal drag-scroll handling below -- same tap-to-focus
+    // pattern every other tile uses; paint/rotate are gated behind
+    // isFocusedFn() regardless, so there's nothing to bypass for yet.
     if (isFocused && focusedTile === vinylTile && e.target.closest(".tile.vinyl")) {
       return;
     }
