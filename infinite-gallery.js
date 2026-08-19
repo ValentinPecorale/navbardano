@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { createVinylReveal } from "./vinyl-reveal.js";
 
 // ---------------------------------------------------------------------
 // Pinned tile registry -- one-off special tiles pinned into the wallpaper
@@ -16,11 +17,14 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 //                             code: isStack / stackTile / setStackImages()
 //   item 3 fisheyevideo   -- looping video through a WebGL fisheye lens
 //                             code: isVideo / videoTile / setupFisheye()
-//   item 4 vinyl          -- 3D vinyl record (Three.js + GLTFLoader), same
-//                             flat-at-rest/cursor-driven-once-focused split
-//                             as item 1 vhs, but unclamped -- a full 360°
-//                             spin instead of a small lean
-//                             code: isVinyl / vinylTile / setupVinyl()
+//   item 4 vinyl          -- 3D vinyl record with the same paint-to-reveal
+//                             mask mechanism and manual orbit as the
+//                             vinylprocess project (left-drag paints
+//                             across 3 layers, right-drag orbits,
+//                             unclamped spin / clamped pitch), active only
+//                             while focused. Ported to vanilla JS in
+//                             vinyl-reveal.js -- see createVinylReveal()
+//                             code: isVinyl / vinylTile / createVinylReveal()
 // ---------------------------------------------------------------------
 
 (() => {
@@ -78,15 +82,14 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
   const VHS_TILT_RANGE = 0.5; // rad each way the cursor can lean it off resting, once focused
   const VHS_TILT_LERP = 0.08; // how quickly the tilt eases towards the cursor-driven target (and back to resting when unfocused)
 
-  // A fourth pinned tile (item 4 vinyl) renders a 3D vinyl record GLB, same
-  // resting-vs-3D-mode split and setup pattern as vhs above -- but where
-  // vhs clamps the cursor-driven motion to a small lean (VHS_TILT_RANGE),
-  // vinyl deliberately has no range constant: applyVinylTilt() scales
-  // straight by Math.PI, letting the cursor spin it a full 360° instead of
-  // just leaning it.
+  // A fourth pinned tile (item 4 vinyl) is the full paint-to-reveal vinyl
+  // record ported from the vinylprocess project (see vinyl-reveal.js) --
+  // left-drag paints across 3 layers, right-drag orbits (unclamped spin,
+  // clamped pitch), both only while this tile is focused.
   const VINYL_MODEL_SRC = "assets/vinyl/vinyl_record.glb";
-  const VINYL_TARGET_SIZE = 0.4; // model is rescaled so its largest dimension equals this, in Three.js scene units
-  const VINYL_TILT_LERP = 0.08; // how quickly the spin eases towards the cursor-driven target (and back to resting when unfocused)
+  const VINYL_LAYER1_SRC = "assets/vinyl/reveal-layer1.png";
+  const VINYL_LAYER2_SRC = "assets/vinyl/reveal-layer2.png";
+  const VINYL_LAYER3_SRC = "assets/vinyl/reveal-layer3.png";
 
   const DESKTOP_TILE_W = 300; // visible image width
   const DESKTOP_TILE_H = 380; // visible image height
@@ -183,9 +186,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
   const vhsTiltTarget = { x: 0, y: 0 }; // where it's easing towards -- cursor-driven while focused, resting (0,0) otherwise
 
   let vinylTile = null; // the single tile designated as item 4 vinyl
-  let vinylThree = null; // { renderer, scene, camera, group } for vinylTile's canvas, or null once disposed
-  const vinylTiltCurrent = { x: 0, y: 0 }; // current (eased) spin, radians
-  const vinylTiltTarget = { x: 0, y: 0 }; // where it's easing towards -- cursor-driven while focused, resting (0,0) otherwise
+  let vinylReveal = null; // { tick, dispose } handle from createVinylReveal(), or null once disposed
 
   // ---------------------------------------------------------------------
   // Helpers
@@ -261,11 +262,9 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
     if (vinylRow === videoRow) vinylRow = mod(vinylRow + 1, rows);
     if (vinylRow === vhsRow) vinylRow = mod(vinylRow + 1, rows);
     if (vinylRow === stackRow) vinylRow = mod(vinylRow + 1, rows);
-    if (vinylThree) vinylThree.renderer.dispose(); // release the old tile's WebGL context before buildGrid() drops its canvas
+    if (vinylReveal) vinylReveal.dispose(); // release the old tile's renderer/React root before buildGrid() drops its canvas
     vinylTile = null;
-    vinylThree = null;
-    vinylTiltCurrent.x = vinylTiltTarget.x = 0;
-    vinylTiltCurrent.y = vinylTiltTarget.y = 0;
+    vinylReveal = null;
 
     const frag = document.createDocumentFragment();
 
@@ -303,6 +302,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
         let fisheyeCanvas = null;
         let vhsCanvas = null;
         let vinylCanvas = null;
+        let vinylFluidWrapper = null;
 
         if (isStack) {
           img = document.createElement("img");
@@ -350,6 +350,14 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
           vhsCanvas.className = "vhs-canvas";
           inner.appendChild(vhsCanvas);
         } else if (isVinyl) {
+          // The fluid-paint composition mounts its own (invisible, opacity:0)
+          // canvas inside this wrapper -- see vinyl-reveal.js -- sitting on
+          // top (z-index) of the visible vinylCanvas below so it intercepts
+          // pointer events for both painting and orbiting.
+          vinylFluidWrapper = document.createElement("div");
+          vinylFluidWrapper.className = "vinyl-fluid-wrapper";
+          inner.appendChild(vinylFluidWrapper);
+
           vinylCanvas = document.createElement("canvas");
           vinylCanvas.className = "vinyl-canvas";
           inner.appendChild(vinylCanvas);
@@ -395,7 +403,17 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
         }
         if (isVinyl) {
           vinylTile = tile;
-          vinylThree = setupVinyl(vinylCanvas);
+          vinylReveal = createVinylReveal({
+            canvas: vinylCanvas,
+            fluidWrapperEl: vinylFluidWrapper,
+            layer1Src: VINYL_LAYER1_SRC,
+            layer2Src: VINYL_LAYER2_SRC,
+            layer3Src: VINYL_LAYER3_SRC,
+            modelUrl: VINYL_MODEL_SRC,
+            tileWidth: TILE_W,
+            tileHeight: TILE_H,
+            isFocusedFn: () => isFocused && focusedTile === vinylTile,
+          });
         }
       }
     }
@@ -587,13 +605,10 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
       vhsTiltTarget.y = 0;
     }
 
-    // Same idea for item 4 vinyl -- ease the spin back to resting (and let
-    // the idle spin resume) instead of leaving it wherever the cursor last
-    // was.
-    if (focusedTile === vinylTile) {
-      vinylTiltTarget.x = 0;
-      vinylTiltTarget.y = 0;
-    }
+    // Item 4 vinyl deliberately has no reset here -- vinylprocess itself
+    // doesn't spring back on unfocus either; orbiting it leaves it exactly
+    // where you left it, and painting is permanent (a latched reveal), so
+    // there's nothing to ease back to.
 
     galleryEl.classList.remove("focused");
     if (focusedTile) focusedTile.el.style.zIndex = "";
@@ -1034,123 +1049,14 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
   }
 
   // ---------------------------------------------------------------------
-  // Item 4 vinyl -- same setup/tilt/tick pattern as item 1 vhs above, with
-  // one deliberate difference: applyVinylTilt() has no clamped range
-  // constant (vhs's VHS_TILT_RANGE) -- it scales straight by Math.PI, so
-  // the cursor can spin it a full 360° instead of just leaning it.
+  // Item 4 vinyl -- setup lives in vinyl-reveal.js (createVinylReveal()),
+  // ported directly off vinylprocess's <HoverRevealShader>: same two-mask
+  // paint-to-reveal, same stroke-snapshot gate, same manual orbit. This
+  // tick just delegates to the handle's own update function each frame.
   // ---------------------------------------------------------------------
 
-  function setupVinyl(canvas) {
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    renderer.setClearColor(0x000000, 0); // fully transparent -- the tile shows the red CMS backdrop through it, not a fill color
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.1;
-
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(35, TILE_W / TILE_H, 0.01, 10);
-    // Measured directly from the GLB's own node-transform chain (not a
-    // guess, and not vhs's convention): this model's "tracks" mesh comes
-    // out at world-space bounds X:+-0.152, Y:+-0.152, Z:+-0.001 -- the
-    // record's face lies in the XY plane, with Z as the thin axis. Looking
-    // down Y (vhs's own viewDir) views this model exactly edge-on -- a
-    // wide, razor-thin sliver, invisible at render resolution. Looking
-    // down Z instead is the actual face-on shot. up=(0,1,0) is fine here
-    // (unlike vhs, which needed a +Z up specifically to avoid lookAt's
-    // degenerate-roll case when viewDir is itself vertical).
-    const viewDir = new THREE.Vector3(0, 0, 1);
-    camera.up.set(0, 1, 0);
-
-    const keyLight = new THREE.DirectionalLight(0xffffff, 2.2);
-    keyLight.position.set(0.3, 1, 0.6);
-    scene.add(keyLight);
-    const fillLight = new THREE.DirectionalLight(0x9fb8ff, 0.6);
-    fillLight.position.set(-0.3, 0.6, -0.6);
-    scene.add(fillLight);
-    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-
-    // The loaded model gets centered and scaled into this group, so
-    // tilting/spinning the group never has to fight the model's own
-    // off-center pivot or unknown source scale.
-    const group = new THREE.Group();
-    scene.add(group);
-
-    new GLTFLoader().load(VINYL_MODEL_SRC, (gltf) => {
-      const model = gltf.scene;
-
-      const box = new THREE.Box3().setFromObject(model);
-      const size = box.getSize(new THREE.Vector3());
-      const maxDim = Math.max(size.x, size.y, size.z) || 1;
-      model.scale.setScalar(VINYL_TARGET_SIZE / maxDim);
-
-      const box2 = new THREE.Box3().setFromObject(model);
-      const center2 = box2.getCenter(new THREE.Vector3());
-      model.position.sub(center2);
-
-      group.add(model);
-
-      // Frame the camera off the model's own bounding sphere (rotation-
-      // invariant, so the idle spin and cursor tilt never swing a corner
-      // past the frustum), same reasoning as vhs above.
-      const sphere = box2.getBoundingSphere(new THREE.Sphere());
-      const vFov = THREE.MathUtils.degToRad(camera.fov);
-      const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
-      const distV = sphere.radius / Math.sin(vFov / 2);
-      const distH = sphere.radius / Math.sin(hFov / 2);
-      const distance = Math.max(distV, distH) * 1.15; // 15% padding so the model doesn't touch the tile edges
-
-      camera.position.copy(viewDir).multiplyScalar(distance);
-      camera.near = distance / 100;
-      camera.far = distance * 10;
-      camera.updateProjectionMatrix();
-      camera.lookAt(0, 0, 0);
-    });
-
-    renderer.setSize(TILE_W, TILE_H, false);
-
-    return { renderer, scene, camera, group };
-  }
-
-  function applyVinylTilt(clientX, clientY) {
-    if (!vinylTile) return;
-    const rect = vinylTile.el.getBoundingClientRect();
-    const normalizedX = clamp((clientX - (rect.left + rect.width / 2)) / (rect.width / 2), -1, 1);
-    const normalizedY = clamp((clientY - (rect.top + rect.height / 2)) / (rect.height / 2), -1, 1);
-    // No VHS_TILT_RANGE-style clamp here on purpose -- Math.PI each way is
-    // a full 360° of spin across the tile, not a small lean.
-    vinylTiltTarget.y = normalizedX * Math.PI;
-    vinylTiltTarget.x = normalizedY * Math.PI;
-  }
-
-  // Runs continuously (not gated by isFocused/tick's freeze) so a lingering
-  // return-to-resting ease still finishes even while the wallpaper
-  // simulation is frozen for focus mode on some other tile.
   function vinylTick() {
-    if (vinylTile && vinylThree) {
-      const { renderer, scene, camera, group } = vinylThree;
-
-      // Same resting-vs-3D-mode split as vhs: flat/facing-camera
-      // (rotation target (0,0)) until focused, cursor-driven spin only
-      // once selected -- see applyVinylTilt() and exitFocus()'s
-      // vinylTiltTarget reset above.
-      const target = isFocused && focusedTile === vinylTile ? vinylTiltTarget : { x: 0, y: 0 };
-      vinylTiltCurrent.x = lerp(vinylTiltCurrent.x, target.x, VINYL_TILT_LERP);
-      vinylTiltCurrent.y = lerp(vinylTiltCurrent.y, target.y, VINYL_TILT_LERP);
-      group.rotation.x = vinylTiltCurrent.x;
-      group.rotation.y = vinylTiltCurrent.y;
-
-      // Match the backing-store resolution to the tile's on-screen size,
-      // same reasoning as the other canvases above.
-      const canvas = renderer.domElement;
-      if (canvas.width !== TILE_W || canvas.height !== TILE_H) {
-        renderer.setSize(TILE_W, TILE_H, false);
-        camera.aspect = TILE_W / TILE_H;
-        camera.updateProjectionMatrix();
-      }
-
-      renderer.render(scene, camera);
-    }
+    if (vinylReveal) vinylReveal.tick();
     requestAnimationFrame(vinylTick);
   }
 
@@ -1159,6 +1065,25 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
   // ---------------------------------------------------------------------
 
   function onPointerDown(e) {
+    // While vinyl is the focused tile, its own listeners (the fluid
+    // paint canvas + createManualOrbit) need completely normal, uncaptured
+    // pointer events -- the same conflict vinylprocess's own useManualOrbit
+    // comment warns about with drei's OrbitControls. Capturing the pointer
+    // here (below) redirects every subsequent pointermove/up to galleryEl
+    // regardless of where the cursor actually is, which silently breaks
+    // both painting and orbiting. On top of that, hasMoved only tracks
+    // vertical movement (the wallpaper only scrolls vertically), so a
+    // horizontal-only paint stroke reads as "no movement" -- if it happens
+    // to end outside the tile's bounds, handleClick() then sees
+    // `tile !== focusedTile` and spuriously calls exitFocus(), shrinking
+    // the tile back to unfocused scale mid-paint. Bypassing this handler
+    // entirely for gestures starting on the focused vinyl tile avoids
+    // both problems at once; a later click actually outside the tile is
+    // a separate gesture and still exits focus normally.
+    if (isFocused && focusedTile === vinylTile && e.target.closest(".tile.vinyl")) {
+      return;
+    }
+
     isDragging = true;
     hasMoved = false;
     pointerId = e.pointerId;
@@ -1293,7 +1218,9 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
     if (isFocused && focusedTile === stackTile) applyStackTilt(e.clientX, e.clientY);
     if (isFocused && focusedTile === videoTile) updateFisheyeTarget(e.clientX, e.clientY);
     if (isFocused && focusedTile === vhsTile) applyVhsTilt(e.clientX, e.clientY);
-    if (isFocused && focusedTile === vinylTile) applyVinylTilt(e.clientX, e.clientY);
+    // Item 4 vinyl's orbit tracks the cursor via its own window pointermove
+    // listener (see createManualOrbit() in vinyl-reveal.js), gated by its
+    // own isFocusedFn -- nothing needed here.
   });
 
   preloadImages();

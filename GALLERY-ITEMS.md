@@ -16,16 +16,20 @@ each source.
 
 These exist as exactly one instance on screen at a time — pinned into a
 fixed slot in the wallpaper rather than cycling like the plain photos below.
-All four: flat / facing-camera at rest, cursor-driven "3D mode" once
-clicked into focus (vinyl's cursor-driven mode is a full 360° spin, not a
-clamped lean like the other three).
+Items 1–3: flat / facing-camera at rest, cursor-driven "3D mode" once
+clicked into focus. Item 4 (vinyl) is a full port of the `vinylprocess`
+project's interactive record, active only while focused: left-drag paints
+across 3 layers (same two-mask reveal, same stroke-snapshot trigger),
+right-drag orbits (unclamped spin, clamped pitch) — see
+`vinyl-reveal.js`'s file header for why this needed an isolated React
+root even though the rest of the gallery is plain vanilla JS.
 
 | # | Name | What it is | Current source | Code |
 |---|------|-----------|-----------------|------|
 | 1 | **vhs** | 3D Sony VHS tape (Three.js + GLTFLoader) | `assets/vhs/sony_vhs_tape.glb` | `VHS_MODEL_SRC`, `setupVhs()`, `vhsTick()` |
 | 2 | **stackedlayers** | Click-to-rotate photo stack, 6 frames | 6 picsum placeholders, seeds `infinite-gallery-stack-1`…`6` | `STACK_IMAGES`, `setStackImages()`, `advanceStack()` |
 | 3 | **fisheyevideo** | Looping video through a WebGL fisheye lens | `video/gallery-video.mp4` | `VIDEO_SRC`, `setupFisheye()`, `drawFisheyeFrame()` |
-| 4 | **vinyl** | 3D vinyl record (Three.js + GLTFLoader) | `assets/vinyl/vinyl_record.glb` | `VINYL_MODEL_SRC`, `setupVinyl()`, `vinylTick()` |
+| 4 | **vinyl** | Paint-to-reveal 3D vinyl record, ported from `vinylprocess` (Three.js + TSL/WebGPU + an isolated React root for the fluid-paint sim) | `assets/vinyl/vinyl_record.glb` + `reveal-layer1/2/3.png` | `vinyl-reveal.js`, `createVinylReveal()`, `vinylTick()` |
 
 ## Cycling wallpaper photos
 

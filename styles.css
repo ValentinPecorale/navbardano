@@ -844,11 +844,23 @@ body {
   transform: scale(1.06);
 }
 
-/* Item 4 vinyl -- the 3D-rendered vinyl record (setupVinyl()/vinylTick()
-   in infinite-gallery.js). Same hover-scale language and tile-inner
-   background reset as item 1 vhs above. */
+/* Item 4 vinyl -- the paint-to-reveal vinyl record ported from
+   vinylprocess (createVinylReveal() in vinyl-reveal.js). Same hover-scale
+   language and tile-inner background reset as item 1 vhs above. */
 .tile.vinyl .tile-inner {
   background: none;
+}
+
+/* Invisible (opacity 0) host for the fluid-paint composition's own
+   canvas, mounted by its isolated React root. Sits above (z-index) the
+   visible vinyl-canvas below so it intercepts pointer events first, for
+   both painting and orbiting -- same stacking as vinylprocess's own
+   z-10 fluid wrapper. */
+.vinyl-fluid-wrapper {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  opacity: 0;
 }
 
 .vinyl-canvas {
