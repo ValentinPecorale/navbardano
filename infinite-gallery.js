@@ -1434,6 +1434,23 @@ renderSongCollection(ALBUM);
   }
 
   // ---------------------------------------------------------------------
+  // Tap-outside-to-exit-focus, from the empty gaps specifically. A tap on
+  // another *tile* is already handled by handleClick() via the normal
+  // pointerdown/up flow on #gallery -- this only covers the gaps, which are
+  // pointer-events:none on #gallery itself (see styles.css) so they stay
+  // click-through/undraggable otherwise. Deliberately a plain "click" (not
+  // the manual pointerdown/up dance the rest of the gallery uses to dodge
+  // native-click-vs-setPointerCapture quirks) since nothing here ever calls
+  // setPointerCapture for a gap-originated pointer, so native click just
+  // works. Picking a song must NOT exit focus, hence the song-row bypass.
+  // ---------------------------------------------------------------------
+  function onGapClick(e) {
+    if (!isFocused) return;
+    if (e.target.closest(".tile") || e.target.closest(".song-row--playable")) return;
+    exitFocus();
+  }
+
+  // ---------------------------------------------------------------------
   // Wire up
   // ---------------------------------------------------------------------
 
@@ -1478,6 +1495,7 @@ renderSongCollection(ALBUM);
   window.addEventListener("pointerup", onPointerUp);
   window.addEventListener("pointercancel", onPointerUp);
   galleryScrollScopeEl.addEventListener("wheel", onWheel, { passive: false });
+  galleryScrollScopeEl.addEventListener("click", onGapClick);
   window.addEventListener("resize", onResize);
 
   // Tilt-follow only runs while the stack is the focused tile, but then
