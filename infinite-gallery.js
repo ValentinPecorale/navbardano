@@ -431,6 +431,34 @@ renderSongCollection(ALBUM);
   let stackIndex = 0; // which STACK_IMAGES frame it's currently showing
   let stackAnimating = false; // debounce clicks mid-shuffle
   let stackShuffleTimer = null;
+  let stackAspect = null; // STACK_IMAGES[0]'s naturalWidth/naturalHeight, null until measureStackAspect() resolves
+
+  // The stack tile is sized to its own images' aspect ratio (assumed
+  // consistent across the curated STACK_IMAGES set) instead of being
+  // cropped into the normal TILE_W x TILE_H box like every other tile --
+  // this is the largest box of that ratio that still fits within the usual
+  // envelope, so it never grows past its neighbors' footprint, just doesn't
+  // fill it on both axes. Falls back to the normal box until the aspect
+  // ratio is known (first paint, before STACK_IMAGES[0] has loaded).
+  function stackBoxSize() {
+    if (!stackAspect) return { w: TILE_W, h: TILE_H };
+    const scale = Math.min(TILE_W / stackAspect.w, TILE_H / stackAspect.h);
+    return { w: stackAspect.w * scale, h: stackAspect.h * scale };
+  }
+
+  function measureStackAspect() {
+    const img = new Image();
+    img.onload = () => {
+      stackAspect = { w: img.naturalWidth, h: img.naturalHeight };
+      if (!stackTile) return;
+      const { w, h } = stackBoxSize();
+      stackTile.w = w;
+      stackTile.h = h;
+      stackTile.el.style.width = `${w}px`;
+      stackTile.el.style.height = `${h}px`;
+    };
+    img.src = STACK_IMAGES[0];
+  }
 
   let videoTile = null; // the single tile designated as the fisheye video
   let videoEl = null; // the <video> feeding the WebGL texture
@@ -544,8 +572,9 @@ renderSongCollection(ALBUM);
               : isVinyl
                 ? "tile vinyl"
                 : "tile";
-        el.style.width = `${TILE_W}px`;
-        el.style.height = `${TILE_H}px`;
+        const box = isStack ? stackBoxSize() : { w: TILE_W, h: TILE_H };
+        el.style.width = `${box.w}px`;
+        el.style.height = `${box.h}px`;
 
         const inner = document.createElement("div");
         inner.className = "tile-inner";
@@ -638,6 +667,8 @@ renderSongCollection(ALBUM);
           col: i,
           row: j,
           lastIndex: -1,
+          w: box.w,
+          h: box.h,
           isStack,
           stack3dEl: stack3d,
           back1El: back1,
@@ -697,9 +728,15 @@ renderSongCollection(ALBUM);
       // band. Horizontal never moves, so baseX is used as-is, no wrapping.
       const wrappedY = mod(rawY, patternH) - CELL_H;
 
-      tile.curX = baseX; // last on-screen position, used by enter/exitFocus
-      tile.curY = wrappedY;
-      tile.el.style.transform = `translate3d(${baseX.toFixed(1)}px, ${wrappedY.toFixed(1)}px, 0)`;
+      // Centers a tile smaller than the normal TILE_W x TILE_H envelope
+      // within its own cell instead of hugging the top-left corner -- a
+      // no-op for every tile except the stack tile (see stackBoxSize()).
+      const centeredX = baseX + (TILE_W - tile.w) / 2;
+      const centeredY = wrappedY + (TILE_H - tile.h) / 2;
+
+      tile.curX = centeredX; // last on-screen position, used by enter/exitFocus
+      tile.curY = centeredY;
+      tile.el.style.transform = `translate3d(${centeredX.toFixed(1)}px, ${centeredY.toFixed(1)}px, 0)`;
 
       // The stack tile ignores the normal wallpaper cycling below -- it
       // always shows the current STACK_IMAGES frame, advanced by clicks.
@@ -792,8 +829,8 @@ renderSongCollection(ALBUM);
 
       if (t === tile) {
         t.el.style.zIndex = "20";
-        const left = window.innerWidth / 2 - TILE_W / 2;
-        const top = window.innerHeight / 2 - TILE_H / 2;
+        const left = window.innerWidth / 2 - t.w / 2;
+        const top = window.innerHeight / 2 - t.h / 2;
         t.el.style.transform = `translate3d(${left.toFixed(1)}px, ${top.toFixed(1)}px, 0) scale(${FOCUS_SCALE})`;
 
         // The stack tile rests flat (rotateY(0), see .stack-3d) so it reads
@@ -814,8 +851,8 @@ renderSongCollection(ALBUM);
       // viewport edges -- it exits through whichever is closest, moving
       // along a single axis (purely vertical for top/bottom, purely
       // horizontal for left/right) rather than cutting a diagonal.
-      const cx = t.curX + TILE_W / 2;
-      const cy = t.curY + TILE_H / 2;
+      const cx = t.curX + t.w / 2;
+      const cy = t.curY + t.h / 2;
       const distTop = cy;
       const distBottom = window.innerHeight - cy;
       const distLeft = cx;
@@ -825,11 +862,11 @@ renderSongCollection(ALBUM);
       let exitX = t.curX;
       let exitY = t.curY;
       if (minDist === distTop) {
-        exitY = -TILE_H - FOCUS_EXIT_MARGIN;
+        exitY = -t.h - FOCUS_EXIT_MARGIN;
       } else if (minDist === distBottom) {
         exitY = window.innerHeight + FOCUS_EXIT_MARGIN;
       } else if (minDist === distLeft) {
-        exitX = -TILE_W - FOCUS_EXIT_MARGIN;
+        exitX = -t.w - FOCUS_EXIT_MARGIN;
       } else {
         exitX = window.innerWidth + FOCUS_EXIT_MARGIN;
       }
@@ -1520,6 +1557,7 @@ renderSongCollection(ALBUM);
   });
 
   preloadImages();
+  measureStackAspect();
   buildGrid();
   requestAnimationFrame(tick);
   requestAnimationFrame(videoTick);
