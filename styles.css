@@ -693,10 +693,14 @@ body {
    that section instead of bleeding through while it's is-collapsed.
    z-index:2, one above .wrapper/.song-collection's shared z-index:1 (see
    the rule above), so the gallery's tiles paint over the song list and
-   lyric text as they scroll instead of sitting behind them. Note: since
-   #gallery now covers the text's full box, .song-row--playable's own
-   pointer-events:auto no longer wins hit-testing against it -- if a song
-   row's click-to-play stops responding after this, that's why. */
+   lyric text as they scroll instead of sitting behind them.
+   pointer-events:none here, re-enabled per-tile below (.tile), so only the
+   tiles themselves are interactive/draggable -- clicks in the (large,
+   GAP-sized) empty space between tiles fall straight through to whatever
+   text is underneath, e.g. a playable song row, instead of #gallery's own
+   full-viewport box swallowing them first. A drag-to-scroll gesture must
+   now start on a tile for the same reason; starting one in a gap no
+   longer pans the wallpaper. */
 #gallery {
   position: absolute;
   inset: 0;
@@ -706,6 +710,7 @@ body {
   touch-action: none;
   -webkit-user-select: none;
   user-select: none;
+  pointer-events: none;
 }
 
 #gallery.dragging {
@@ -726,6 +731,10 @@ body {
   left: 0;
   will-change: transform;
   transform: translate3d(0, 0, 0);
+  /* #gallery itself is pointer-events:none (see above) so gaps between
+     tiles click through to the text underneath -- re-enable it here so the
+     tiles remain draggable/clickable. */
+  pointer-events: auto;
 }
 
 .tile-inner {
