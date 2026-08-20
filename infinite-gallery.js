@@ -101,30 +101,134 @@ async function fetchAlbum(slug) {
   }
 }
 
-// Shared across renders (only one song, and one call to renderSongCollection,
-// ever exists per page) so repeated calls don't leak <audio> elements or
-// duplicate "ended" listeners.
-let songAudioEl = null;
-let playingSongRow = null;
+// ---------------------------------------------------------------------
+// Song player -- a single shared <audio> (the nav's own [data-equalizer-audio],
+// reused rather than a second element, so the song list and the rhythm icon
+// can never fight over two overlapping tracks) driven from two entry points:
+// clicking a song row picks that song; clicking the rhythm icon (script.js
+// calls window.songPlayer.toggle(), since it's a separate, non-module script
+// with no direct access to album data) just plays/pauses whatever's current,
+// picking a random playable song first if none has been chosen yet.
+// Module-level like ALBUM itself -- only one page/album is ever loaded at a
+// time, so one "current song" is all this ever needs to track.
+// ---------------------------------------------------------------------
+let currentAlbumSongs = [];
+let currentSongIndex = null;
+let fadeRAF = null;
 
-function stopBackgroundEqualizerTrack() {
-  // Avoid overlapping playback: a song taking over from the nav's own
-  // background-music toggle should actually silence it, not just visually
-  // look paused underneath a still-playing track.
-  const equalizerAudio = document.querySelector("[data-equalizer-audio]");
-  if (equalizerAudio && !equalizerAudio.paused) {
-    equalizerAudio.pause();
-    const equalizer = document.querySelector("[data-equalizer]");
-    equalizer?.classList.remove("is-playing");
-    equalizer?.setAttribute("aria-pressed", "false");
-  }
+function getSongAudioEl() {
+  return document.querySelector("[data-equalizer-audio]");
 }
+
+function fadeSongAudio(audio, targetVolume, duration, onComplete) {
+  cancelAnimationFrame(fadeRAF);
+  const startVolume = audio.volume;
+  const startTime = performance.now();
+  function step(now) {
+    const t = Math.min((now - startTime) / duration, 1);
+    audio.volume = startVolume + (targetVolume - startVolume) * t;
+    if (t < 1) {
+      fadeRAF = requestAnimationFrame(step);
+    } else {
+      onComplete?.();
+    }
+  }
+  fadeRAF = requestAnimationFrame(step);
+}
+
+const SONG_FADE_MS = 600;
+
+function setEqualizerPlaying(isPlaying) {
+  const equalizer = document.querySelector("[data-equalizer]");
+  if (!equalizer) return;
+  equalizer.classList.toggle("is-playing", isPlaying);
+  equalizer.setAttribute("aria-pressed", String(isPlaying));
+  equalizer.setAttribute(
+    "aria-label",
+    isPlaying ? "Pausar reproductor de música" : "Reproducir reproductor de música"
+  );
+}
+
+function highlightSongRow(index, isPlaying) {
+  if (index === null) return;
+  document.querySelector(`.song-row[data-song-index="${index}"]`)?.classList.toggle("is-playing", isPlaying);
+}
+
+function startSongAudio(audio) {
+  audio.volume = 0;
+  audio.play();
+  fadeSongAudio(audio, 1, SONG_FADE_MS);
+  setEqualizerPlaying(true);
+}
+
+function pauseSongAudio(audio) {
+  fadeSongAudio(audio, 0, SONG_FADE_MS, () => {
+    audio.pause();
+    audio.volume = 1;
+  });
+  setEqualizerPlaying(false);
+}
+
+// Row click: pick this exact song. Same song clicked again toggles
+// pause/resume instead of restarting it from the beginning.
+function playSongByIndex(index) {
+  const song = currentAlbumSongs[index];
+  const audio = getSongAudioEl();
+  if (!song?.audioUrl || !audio) return;
+
+  if (currentSongIndex === index) {
+    if (audio.paused) {
+      startSongAudio(audio);
+      highlightSongRow(index, true);
+    } else {
+      pauseSongAudio(audio);
+      highlightSongRow(index, false);
+    }
+    return;
+  }
+
+  highlightSongRow(currentSongIndex, false);
+  currentSongIndex = index;
+  audio.src = song.audioUrl;
+  audio.currentTime = 0;
+  startSongAudio(audio);
+  highlightSongRow(index, true);
+}
+
+// Rhythm icon click (called from script.js, a separate non-module script
+// with no access to ALBUM/currentAlbumSongs): just play/pause whatever's
+// current. If nothing has been picked from the list yet, pick a random
+// playable song first.
+function toggleSongPlayer() {
+  const audio = getSongAudioEl();
+  if (!audio) return;
+
+  if (!audio.paused) {
+    pauseSongAudio(audio);
+    highlightSongRow(currentSongIndex, false);
+    return;
+  }
+
+  if (currentSongIndex === null) {
+    const playable = currentAlbumSongs.map((song, i) => (song.audioUrl ? i : -1)).filter((i) => i !== -1);
+    if (!playable.length) return;
+    currentSongIndex = playable[Math.floor(Math.random() * playable.length)];
+    audio.src = currentAlbumSongs[currentSongIndex].audioUrl;
+    audio.currentTime = 0;
+  }
+
+  startSongAudio(audio);
+  highlightSongRow(currentSongIndex, true);
+}
+
+window.songPlayer = { toggle: toggleSongPlayer };
 
 function renderSongCollection(album) {
   const list = document.querySelector(".song-list");
   const desc = document.querySelector(".song-description");
   if (list && Array.isArray(album.songs) && album.songs.length) {
-    playingSongRow = null;
+    currentAlbumSongs = album.songs;
+    currentSongIndex = null;
     list.innerHTML = album.songs
       .map(
         (song, i) => `
@@ -135,38 +239,17 @@ function renderSongCollection(album) {
       )
       .join("");
 
-    if (!songAudioEl) {
-      songAudioEl = document.createElement("audio");
-      songAudioEl.setAttribute("data-song-audio", "");
-      document.body.appendChild(songAudioEl);
-      songAudioEl.addEventListener("ended", () => {
-        playingSongRow?.classList.remove("is-playing");
-        playingSongRow = null;
-      });
+    const audio = getSongAudioEl();
+    if (audio) {
+      audio.onended = () => {
+        setEqualizerPlaying(false);
+        highlightSongRow(currentSongIndex, false);
+        audio.currentTime = 0;
+      };
     }
 
     list.querySelectorAll(".song-row--playable").forEach((row) => {
-      row.addEventListener("click", () => {
-        const song = album.songs[Number(row.dataset.songIndex)];
-        if (playingSongRow === row) {
-          // Same song clicked again -- toggle pause/resume rather than
-          // restarting it from the beginning.
-          if (songAudioEl.paused) {
-            songAudioEl.play();
-            row.classList.add("is-playing");
-          } else {
-            songAudioEl.pause();
-            row.classList.remove("is-playing");
-          }
-          return;
-        }
-        stopBackgroundEqualizerTrack();
-        playingSongRow?.classList.remove("is-playing");
-        songAudioEl.src = song.audioUrl;
-        songAudioEl.play();
-        row.classList.add("is-playing");
-        playingSongRow = row;
-      });
+      row.addEventListener("click", () => playSongByIndex(Number(row.dataset.songIndex)));
     });
   }
   if (desc && album.songDescription) {

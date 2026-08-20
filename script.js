@@ -61,57 +61,15 @@ function initNavbar(nav) {
     }
   }
 
+  // The rhythm icon just toggles the shared song player -- infinite-gallery.js
+  // (a module, loaded separately) owns the actual <audio> element, the fade,
+  // and the album's song data (random pick when nothing's been chosen from
+  // the list yet), and updates this button's state/aria itself. This script
+  // runs before that module does, but the click only happens later, by which
+  // point window.songPlayer is set.
   const equalizer = nav.querySelector("[data-equalizer]");
-  const audio = nav.querySelector("[data-equalizer-audio]");
-
-  const FADE_MS = 600;
-  let fadeRAF = null;
-
-  function fadeAudio(targetVolume, duration, onComplete) {
-    cancelAnimationFrame(fadeRAF);
-    const startVolume = audio.volume;
-    const startTime = performance.now();
-
-    function step(now) {
-      const t = Math.min((now - startTime) / duration, 1);
-      audio.volume = startVolume + (targetVolume - startVolume) * t;
-      if (t < 1) {
-        fadeRAF = requestAnimationFrame(step);
-      } else {
-        onComplete?.();
-      }
-    }
-
-    fadeRAF = requestAnimationFrame(step);
-  }
-
-  function setPlayingState(isPlaying) {
-    equalizer.classList.toggle("is-playing", isPlaying);
-    equalizer.setAttribute("aria-pressed", String(isPlaying));
-    equalizer.setAttribute(
-      "aria-label",
-      isPlaying ? "Pausar reproductor de música" : "Reproducir reproductor de música"
-    );
-  }
-
-  equalizer.addEventListener("click", () => {
-    if (audio.paused) {
-      audio.volume = 0;
-      audio.play();
-      fadeAudio(1, FADE_MS);
-      setPlayingState(true);
-    } else {
-      fadeAudio(0, FADE_MS, () => {
-        audio.pause();
-        audio.volume = 1;
-      });
-      setPlayingState(false);
-    }
-  });
-
-  audio.addEventListener("ended", () => {
-    audio.volume = 1;
-    setPlayingState(false);
+  equalizer?.addEventListener("click", () => {
+    window.songPlayer?.toggle();
   });
 }
 
