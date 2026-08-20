@@ -804,10 +804,9 @@ body {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background-color: #ddd;
+  background-color: transparent;
   background-size: cover;
   background-position: center;
-  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.22);
 }
 
 .stack-card.back-1 {
@@ -820,7 +819,6 @@ body {
 
 .tile.stack img {
   transition: transform 0.42s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.42s ease;
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22);
 }
 
 .tile.stack:hover img {
