@@ -68,7 +68,8 @@ body {
 .navbar {
   position: fixed;
   top: 32px;
-  right: 88px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 10;
   display: inline-flex;
   align-items: flex-start;
@@ -283,7 +284,9 @@ body {
 @media (max-width: 680px) {
   .navbar {
     top: 16px;
+    left: auto;
     right: 16px;
+    transform: none;
   }
 
   .nav-track {
@@ -575,7 +578,13 @@ body {
   z-index: 1;
 }
 
-.viewport-wrapper .footer-credit {
+.viewport-wrapper .footer-credit,
+.viewport-wrapper[data-viewport-wrapper-cms] > .footer-credit {
+  /* The second selector matches the same element on CMS/gallery pages but at
+     equal specificity to (and after, so it wins the tie against) the
+     [data-viewport-wrapper-cms] > *:not(.bg-shader-cms) rule above, which
+     otherwise resets position back to relative and leaves left/transform
+     offsetting from the wrong (in-flow) origin instead of centering. */
   position: absolute;
   bottom: 32px;
   left: 50%;
