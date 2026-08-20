@@ -1259,6 +1259,18 @@ renderSongCollection(ALBUM);
       return;
     }
 
+    // Same reasoning as the vinyl bypass above: setPointerCapture below
+    // redirects every subsequent pointer event (and suppresses the browser's
+    // native "click" synthesis) to galleryEl regardless of where the pointer
+    // actually is, which means a real pointerdown/up on a song row never
+    // reaches that row's own "click" listener (renderSongCollection in
+    // infinite-gallery.js's module scope). handleClick() also only knows
+    // about ".tile" elements, so it wouldn't play the song either way --
+    // bypassing here lets the row's own listener fire normally instead.
+    if (e.target.closest(".song-row--playable")) {
+      return;
+    }
+
     isDragging = true;
     hasMoved = false;
     pointerId = e.pointerId;
