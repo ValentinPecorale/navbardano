@@ -690,15 +690,17 @@ body {
    source project positions #gallery/#hint/#coords with `fixed`; here
    they're `absolute` against .viewport-wrapper[data-viewport-wrapper-cms]
    (position:relative, overflow:hidden) so the gallery stays clipped to
-   that section instead of bleeding through while it's is-collapsed. Left
-   in normal document order before .wrapper so .song-collection's text
-   paints on top of the tiles at the shared z-index:1 from the rule above,
-   per "both should be visible" -- the gallery reads as a moving backdrop
-   behind the song list rather than replacing it. */
+   that section instead of bleeding through while it's is-collapsed.
+   z-index:2, one above .wrapper/.song-collection's shared z-index:1 (see
+   the rule above), so the gallery's tiles paint over the song list and
+   lyric text as they scroll instead of sitting behind them. Note: since
+   #gallery now covers the text's full box, .song-row--playable's own
+   pointer-events:auto no longer wins hit-testing against it -- if a song
+   row's click-to-play stops responding after this, that's why. */
 #gallery {
   position: absolute;
   inset: 0;
-  z-index: 1;
+  z-index: 2;
   overflow: hidden;
   cursor: grab;
   touch-action: none;
