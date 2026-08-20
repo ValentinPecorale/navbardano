@@ -31,6 +31,13 @@ export const album = defineType({
           fields: [
             defineField({name: 'number', title: 'Number', type: 'string', validation: (rule) => rule.required()}),
             defineField({name: 'title', title: 'Title', type: 'string', validation: (rule) => rule.required()}),
+            defineField({
+              name: 'audio',
+              title: 'Audio',
+              description: 'Clicking this song on the site plays this file. Leave empty to leave the song unclickable.',
+              type: 'file',
+              options: {accept: 'audio/*'},
+            }),
           ],
           preview: {
             select: {number: 'number', title: 'title'},

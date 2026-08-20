@@ -78,7 +78,7 @@ async function fetchAlbum(slug) {
     const doc = await sanity.fetch(
       `*[_type == "album" && slug.current == $slug][0]{
         title,
-        songs,
+        "songs": songs[]{ number, title, "audioUrl": audio.asset->url },
         songDescription,
         "wallpaperPhotos": wallpaperPhotos[]{ "url": image.asset->url, caption },
         "stackImageUrls": stackImages[].asset->url,
@@ -101,19 +101,73 @@ async function fetchAlbum(slug) {
   }
 }
 
+// Shared across renders (only one song, and one call to renderSongCollection,
+// ever exists per page) so repeated calls don't leak <audio> elements or
+// duplicate "ended" listeners.
+let songAudioEl = null;
+let playingSongRow = null;
+
+function stopBackgroundEqualizerTrack() {
+  // Avoid overlapping playback: a song taking over from the nav's own
+  // background-music toggle should actually silence it, not just visually
+  // look paused underneath a still-playing track.
+  const equalizerAudio = document.querySelector("[data-equalizer-audio]");
+  if (equalizerAudio && !equalizerAudio.paused) {
+    equalizerAudio.pause();
+    const equalizer = document.querySelector("[data-equalizer]");
+    equalizer?.classList.remove("is-playing");
+    equalizer?.setAttribute("aria-pressed", "false");
+  }
+}
+
 function renderSongCollection(album) {
   const list = document.querySelector(".song-list");
   const desc = document.querySelector(".song-description");
   if (list && Array.isArray(album.songs) && album.songs.length) {
+    playingSongRow = null;
     list.innerHTML = album.songs
       .map(
-        (song) => `
-          <div class="song-row">
+        (song, i) => `
+          <div class="song-row${song.audioUrl ? " song-row--playable" : ""}" data-song-index="${i}">
             <p class="song-number">${song.number}</p>
             <p class="song-title">${song.title}</p>
           </div>`
       )
       .join("");
+
+    if (!songAudioEl) {
+      songAudioEl = document.createElement("audio");
+      songAudioEl.setAttribute("data-song-audio", "");
+      document.body.appendChild(songAudioEl);
+      songAudioEl.addEventListener("ended", () => {
+        playingSongRow?.classList.remove("is-playing");
+        playingSongRow = null;
+      });
+    }
+
+    list.querySelectorAll(".song-row--playable").forEach((row) => {
+      row.addEventListener("click", () => {
+        const song = album.songs[Number(row.dataset.songIndex)];
+        if (playingSongRow === row) {
+          // Same song clicked again -- toggle pause/resume rather than
+          // restarting it from the beginning.
+          if (songAudioEl.paused) {
+            songAudioEl.play();
+            row.classList.add("is-playing");
+          } else {
+            songAudioEl.pause();
+            row.classList.remove("is-playing");
+          }
+          return;
+        }
+        stopBackgroundEqualizerTrack();
+        playingSongRow?.classList.remove("is-playing");
+        songAudioEl.src = song.audioUrl;
+        songAudioEl.play();
+        row.classList.add("is-playing");
+        playingSongRow = row;
+      });
+    });
   }
   if (desc && album.songDescription) {
     desc.textContent = album.songDescription;
