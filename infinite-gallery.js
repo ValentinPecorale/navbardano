@@ -406,8 +406,6 @@ renderSongCollection(ALBUM);
   // no double-firing either way.
   const galleryScrollScopeEl = galleryEl.closest("[data-viewport-wrapper-cms]") || galleryEl.parentElement;
   const canvasEl = document.getElementById("canvas");
-  const hintEl = document.getElementById("hint");
-  const coordsEl = document.getElementById("coords");
 
   const pos = { x: 0, y: 0 }; // current rendered (eased) position
   const target = { x: 0, y: 0 }; // where we're easing towards
@@ -740,8 +738,6 @@ renderSongCollection(ALBUM);
         tile.lastIndex = idx;
       }
     }
-
-    coordsEl.textContent = `Y ${Math.round(-pos.y)}`;
   }
 
   function tick() {
@@ -789,7 +785,6 @@ renderSongCollection(ALBUM);
     target.x = pos.x;
     target.y = pos.y;
 
-    hintEl.classList.add("hidden");
     galleryEl.classList.add("focused");
 
     for (const t of tiles) {
@@ -1384,7 +1379,6 @@ renderSongCollection(ALBUM);
     const dy = e.clientY - startPointer.y;
     if (Math.abs(dy) > 2) {
       hasMoved = true;
-      hintEl.classList.add("hidden");
     }
 
     // Dragging no longer closes focus mode -- only a click outside the
@@ -1431,8 +1425,6 @@ renderSongCollection(ALBUM);
     if (isFocused) return;
 
     if (unfocusTimer !== null) clearReturnTransition();
-
-    hintEl.classList.add("hidden");
 
     // Vertical only -- horizontal wheel/trackpad delta is ignored.
     target.y -= e.deltaY * WHEEL_MULTIPLIER;

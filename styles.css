@@ -922,38 +922,3 @@ body {
 .tile.vinyl:hover .vinyl-canvas {
   transform: scale(1.06);
 }
-
-/* #hint/#coords: white instead of the source project's black, since this
-   section's background is #f51313 red rather than the source's light
-   #f2f1ee -- black text at low opacity would be near-invisible here. */
-#hint {
-  position: absolute;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #fff;
-  opacity: 0.6;
-  pointer-events: none;
-  transition: opacity 0.6s ease;
-  z-index: 2;
-}
-
-#hint.hidden {
-  opacity: 0;
-}
-
-#coords {
-  position: absolute;
-  top: 20px;
-  left: 24px;
-  font-size: 11px;
-  letter-spacing: 0.05em;
-  color: #fff;
-  opacity: 0.5;
-  pointer-events: none;
-  z-index: 2;
-  font-variant-numeric: tabular-nums;
-}
