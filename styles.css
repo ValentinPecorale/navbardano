@@ -573,18 +573,21 @@ body {
   display: block;
 }
 
-.viewport-wrapper[data-viewport-wrapper-cms] > *:not(.bg-shader-cms) {
+/* :where() zeroes this whole selector's specificity so it never again
+   silently wins a `position`/`z-index` fight against an element's own
+   normal single-class rule -- happened twice already (.footer-credit
+   needed a same-specificity, source-order-wins workaround below; then
+   .focus-caption-wrapper got its own position:fixed clobbered back to
+   relative by this rule, turning it into a giant in-flow flex sibling
+   that squeezed .wrapper's height to 0 and pushed the song list mostly
+   above the viewport). Any element's own rule -- single class is plenty --
+   now wins outright regardless of source order. */
+:where(.viewport-wrapper[data-viewport-wrapper-cms] > *:not(.bg-shader-cms)) {
   position: relative;
   z-index: 1;
 }
 
-.viewport-wrapper .footer-credit,
-.viewport-wrapper[data-viewport-wrapper-cms] > .footer-credit {
-  /* The second selector matches the same element on CMS/gallery pages but at
-     equal specificity to (and after, so it wins the tie against) the
-     [data-viewport-wrapper-cms] > *:not(.bg-shader-cms) rule above, which
-     otherwise resets position back to relative and leaves left/transform
-     offsetting from the wrong (in-flow) origin instead of centering. */
+.viewport-wrapper .footer-credit {
   position: absolute;
   bottom: 32px;
   left: 50%;
