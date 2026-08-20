@@ -48,6 +48,19 @@ function initNavbar(nav) {
     });
   });
 
+  // Mark whichever nav item matches the current page's album on load --
+  // window.ALBUM_SLUG is set inline before this script loads (see
+  // index.html / albums/*/index.html), same global infinite-gallery.js
+  // reads to know which album's content to fetch.
+  if (window.ALBUM_SLUG) {
+    const currentItem = nav.querySelector(`[data-nav-key="${window.ALBUM_SLUG}"]`);
+    if (currentItem) {
+      currentItem.classList.add("is-active");
+      currentItem.setAttribute("aria-current", "page");
+      moveHighlightTo(currentItem, { instant: true });
+    }
+  }
+
   const equalizer = nav.querySelector("[data-equalizer]");
   const audio = nav.querySelector("[data-equalizer-audio]");
 

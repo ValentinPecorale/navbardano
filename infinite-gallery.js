@@ -1,6 +1,127 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { createVinylReveal } from "./vinyl-reveal.js";
+import { createClient } from "@sanity/client";
+
+// ---------------------------------------------------------------------
+// Album content -- fetched from Sanity (see /studio for the Studio +
+// `album` schema). Each page sets `window.ALBUM_SLUG` before loading this
+// module (see index.html / albums/*/index.html) so the same script serves
+// every album page. Merges per-field against FALLBACK_ALBUM so a missing
+// field (an album the user hasn't finished filling in yet in Studio) or a
+// CMS outage degrades gracefully instead of breaking the whole gallery.
+// ---------------------------------------------------------------------
+const sanity = createClient({
+  projectId: "9q5qedja",
+  dataset: "production",
+  apiVersion: "2024-01-01",
+  useCdn: true,
+});
+
+const FALLBACK_ALBUM = {
+  title: "Untitled",
+  songs: [
+    { number: "01", title: "NOTORIO, FEAT DUKI, LIL SUPA." },
+    { number: "02", title: "NOTORIO, FEAT DUKI, LIL SUPA." },
+    { number: "03", title: "NOTORIO, FEAT DUKI, LIL SUPA." },
+  ],
+  songDescription:
+    "Lorem ipsum dolor sit amet consectetur adipiscing elit Ut et massa mi. Aliquam in hendrerit urna. Pellentesque sit amet sapien.",
+  wallpaperPhotos: Array.from({ length: 3 }, (_, i) => ({
+    url: `https://picsum.photos/seed/infinite-gallery-${i + 2}/700/900`,
+    caption: `Project ${String(i + 2).padStart(2, "0")}`,
+  })),
+  stackImageUrls: Array.from(
+    { length: 6 },
+    (_, i) => `https://picsum.photos/seed/infinite-gallery-stack-${i + 1}/700/900`
+  ),
+  fisheyeVideoUrl: "/video/gallery-video.mp4",
+  vinylLayerUrls: {
+    layer1: "/assets/vinyl/reveal-layer1.png",
+    layer2: "/assets/vinyl/reveal-layer2.png",
+    layer3: "/assets/vinyl/reveal-layer3.png",
+  },
+};
+
+function mergeAlbum(doc, fallback) {
+  if (!doc) return fallback;
+  const wallpaperPhotos =
+    Array.isArray(doc.wallpaperPhotos) &&
+    doc.wallpaperPhotos.length === 3 &&
+    doc.wallpaperPhotos.every((p) => p && p.url)
+      ? doc.wallpaperPhotos
+      : fallback.wallpaperPhotos;
+  const stackImageUrls =
+    Array.isArray(doc.stackImageUrls) &&
+    doc.stackImageUrls.length === 6 &&
+    doc.stackImageUrls.every(Boolean)
+      ? doc.stackImageUrls
+      : fallback.stackImageUrls;
+  return {
+    title: doc.title || fallback.title,
+    songs: Array.isArray(doc.songs) && doc.songs.length ? doc.songs : fallback.songs,
+    songDescription: doc.songDescription || fallback.songDescription,
+    wallpaperPhotos,
+    stackImageUrls,
+    fisheyeVideoUrl: doc.fisheyeVideoUrl || fallback.fisheyeVideoUrl,
+    vinylLayerUrls: {
+      layer1: doc.vinylLayerUrls?.layer1 || fallback.vinylLayerUrls.layer1,
+      layer2: doc.vinylLayerUrls?.layer2 || fallback.vinylLayerUrls.layer2,
+      layer3: doc.vinylLayerUrls?.layer3 || fallback.vinylLayerUrls.layer3,
+    },
+  };
+}
+
+async function fetchAlbum(slug) {
+  if (!slug) return FALLBACK_ALBUM;
+  try {
+    const doc = await sanity.fetch(
+      `*[_type == "album" && slug.current == $slug][0]{
+        title,
+        songs,
+        songDescription,
+        "wallpaperPhotos": wallpaperPhotos[]{ "url": image.asset->url, caption },
+        "stackImageUrls": stackImages[].asset->url,
+        "fisheyeVideoUrl": fisheyeVideo.asset->url,
+        "vinylLayerUrls": {
+          "layer1": vinylLayers.layer1.asset->url,
+          "layer2": vinylLayers.layer2.asset->url,
+          "layer3": vinylLayers.layer3.asset->url
+        }
+      }`,
+      { slug }
+    );
+    if (!doc) {
+      console.warn(`[infinite-gallery] No "${slug}" album in Sanity yet -- using placeholder content.`);
+    }
+    return mergeAlbum(doc, FALLBACK_ALBUM);
+  } catch (err) {
+    console.error("[infinite-gallery] Failed to fetch album from Sanity -- using placeholder content.", err);
+    return FALLBACK_ALBUM;
+  }
+}
+
+function renderSongCollection(album) {
+  const list = document.querySelector(".song-list");
+  const desc = document.querySelector(".song-description");
+  if (list && Array.isArray(album.songs) && album.songs.length) {
+    list.innerHTML = album.songs
+      .map(
+        (song) => `
+          <div class="song-row">
+            <p class="song-number">${song.number}</p>
+            <p class="song-title">${song.title}</p>
+          </div>`
+      )
+      .join("");
+  }
+  if (desc && album.songDescription) {
+    desc.textContent = album.songDescription;
+  }
+}
+
+const ALBUM = await fetchAlbum(window.ALBUM_SLUG);
+renderSongCollection(ALBUM);
 
 // ---------------------------------------------------------------------
 // Pinned tile registry -- one-off special tiles pinned into the wallpaper
@@ -34,27 +155,19 @@ import { createVinylReveal } from "./vinyl-reveal.js";
   // Config
   // ---------------------------------------------------------------------
 
-  // Replace with your own image URLs. The gallery tiles this set into an
-  // infinite wallpaper, cycling through it both horizontally and vertically.
-  // Seeds start at 2, not 1 -- item 4 vinyl took the seed-1 slot as a
-  // pinned tile instead of a cycling photo (unlike item 1 vhs's mention of
-  // this above, which is flavor text only; this one's real -- IMAGE_COUNT
-  // actually dropped from 4 to 3).
-  const IMAGE_COUNT = 3;
-  const IMAGES = Array.from(
-    { length: IMAGE_COUNT },
-    (_, i) => `https://picsum.photos/seed/infinite-gallery-${i + 2}/700/900`
-  );
-  const CAPTIONS = IMAGES.map((_, i) => `Project ${String(i + 2).padStart(2, "0")}`);
+  // Sourced from the fetched ALBUM (Sanity), falling back to placeholder
+  // picsum images -- see FALLBACK_ALBUM / mergeAlbum() above. The gallery
+  // tiles this set into an infinite wallpaper, cycling through it both
+  // horizontally and vertically. Item 4 vinyl took the seed-1 slot as a
+  // pinned tile instead of a cycling photo, so this is 3 images, not 4.
+  const IMAGES = ALBUM.wallpaperPhotos.map((p) => p.url);
+  const IMAGE_COUNT = IMAGES.length;
+  const CAPTIONS = ALBUM.wallpaperPhotos.map((p) => p.caption);
 
   // One tile in the wallpaper is a click-to-rotate photo stack instead of a
   // normal cycling tile: it has its own image set, and once focused (see
   // Photo stack below), each further click shuffles it to the next frame.
-  const STACK_IMAGE_COUNT = 6;
-  const STACK_IMAGES = Array.from(
-    { length: STACK_IMAGE_COUNT },
-    (_, i) => `https://picsum.photos/seed/infinite-gallery-stack-${i + 1}/700/900`
-  );
+  const STACK_IMAGES = ALBUM.stackImageUrls;
   const STACK_TRANSITION_MS = 420; // must match the CSS transition duration for .stack-exit/.stack-enter
 
   const STACK_BASE_TILT = 45; // deg, resting rotateY -- must match the CSS default on .stack-3d
@@ -68,7 +181,7 @@ import { createVinylReveal } from "./vinyl-reveal.js";
   // once as the wallpaper wraps, which would mean several simultaneous
   // video+WebGL instances of the same clip if it were just another IMAGES
   // entry.
-  const VIDEO_SRC = "video/gallery-video.mp4";
+  const VIDEO_SRC = ALBUM.fisheyeVideoUrl;
   const FISHEYE_POWER = 1.9; // >1 magnifies/bulges the center and compresses toward the edge; <1 would pinch instead
   const FISHEYE_RADIUS = 0.75; // normalized tile-space radius the bulge falls off within
   const FISHEYE_CENTER_LERP = 0.12; // how quickly the bulge glides towards the tracked cursor position
@@ -77,7 +190,7 @@ import { createVinylReveal } from "./vinyl-reveal.js";
   // tape GLB -- in its own Three.js scene. Same resting-vs-3D-mode split as
   // the stack below: flat/facing-camera until focused, cursor-driven tilt
   // ("3D mode") only once selected.
-  const VHS_MODEL_SRC = "assets/vhs/sony_vhs_tape.glb";
+  const VHS_MODEL_SRC = "/assets/vhs/sony_vhs_tape.glb";
   const VHS_TARGET_SIZE = 0.4; // model is rescaled so its largest dimension equals this, in Three.js scene units
   const VHS_TILT_RANGE = 0.5; // rad each way the cursor can lean it off resting, once focused
   const VHS_TILT_LERP = 0.08; // how quickly the tilt eases towards the cursor-driven target (and back to resting when unfocused)
@@ -86,10 +199,12 @@ import { createVinylReveal } from "./vinyl-reveal.js";
   // record ported from the vinylprocess project (see vinyl-reveal.js) --
   // left-drag paints across 3 layers, right-drag orbits (unclamped spin,
   // clamped pitch), both only while this tile is focused.
-  const VINYL_MODEL_SRC = "assets/vinyl/vinyl_record.glb";
-  const VINYL_LAYER1_SRC = "assets/vinyl/reveal-layer1.png";
-  const VINYL_LAYER2_SRC = "assets/vinyl/reveal-layer2.png";
-  const VINYL_LAYER3_SRC = "assets/vinyl/reveal-layer3.png";
+  // The record model itself is shared/fixed across albums (only its 3
+  // reveal-layer artworks vary); those come from the fetched ALBUM.
+  const VINYL_MODEL_SRC = "/assets/vinyl/vinyl_record.glb";
+  const VINYL_LAYER1_SRC = ALBUM.vinylLayerUrls.layer1;
+  const VINYL_LAYER2_SRC = ALBUM.vinylLayerUrls.layer2;
+  const VINYL_LAYER3_SRC = ALBUM.vinylLayerUrls.layer3;
 
   const DESKTOP_TILE_W = 300; // visible image width
   const DESKTOP_TILE_H = 380; // visible image height
