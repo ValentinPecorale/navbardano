@@ -1438,15 +1438,22 @@ renderSongCollection(ALBUM);
   // another *tile* is already handled by handleClick() via the normal
   // pointerdown/up flow on #gallery -- this only covers the gaps, which are
   // pointer-events:none on #gallery itself (see styles.css) so they stay
-  // click-through/undraggable otherwise. Deliberately a plain "click" (not
-  // the manual pointerdown/up dance the rest of the gallery uses to dodge
-  // native-click-vs-setPointerCapture quirks) since nothing here ever calls
-  // setPointerCapture for a gap-originated pointer, so native click just
-  // works. Picking a song must NOT exit focus, hence the song-row bypass.
+  // click-through/undraggable otherwise.
+  // This click event also bubbles up from tile clicks (they aren't
+  // pointer-events:none), so it can't just check e.target -- galleryEl.
+  // setPointerCapture() (in onPointerDown, for the normal tile flow)
+  // redirects the click's target to #gallery itself rather than the tile
+  // that was actually tapped, so an e.target-based tile check here would
+  // silently fail to exclude it and immediately exit the focus that same
+  // gesture's handleClick() just entered. document.elementFromPoint at the
+  // click's real coordinates sidesteps that redirection entirely -- same
+  // technique handleClick() itself already relies on. Picking a song must
+  // NOT exit focus, hence the song-row bypass.
   // ---------------------------------------------------------------------
   function onGapClick(e) {
     if (!isFocused) return;
-    if (e.target.closest(".tile") || e.target.closest(".song-row--playable")) return;
+    const hit = document.elementFromPoint(e.clientX, e.clientY);
+    if (hit && (hit.closest(".tile") || hit.closest(".song-row--playable"))) return;
     exitFocus();
   }
 
