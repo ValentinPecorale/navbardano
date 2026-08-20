@@ -30,17 +30,22 @@ const FALLBACK_ALBUM = {
   wallpaperPhotos: Array.from({ length: 3 }, (_, i) => ({
     url: `https://picsum.photos/seed/infinite-gallery-${i + 2}/700/900`,
     caption: `Project ${String(i + 2).padStart(2, "0")}`,
+    description: "Lorem ipsum dolor sit amet consectetur adipiscing elit Ut et massa mi.",
   })),
   stackImageUrls: Array.from(
     { length: 6 },
     (_, i) => `https://picsum.photos/seed/infinite-gallery-stack-${i + 1}/700/900`
   ),
+  stackDescription: "Lorem ipsum dolor sit amet consectetur adipiscing elit Ut et massa mi.",
   fisheyeVideoUrl: "/video/gallery-video.mp4",
+  fisheyeDescription: "Lorem ipsum dolor sit amet consectetur adipiscing elit Ut et massa mi.",
   vinylLayerUrls: {
     layer1: "/assets/vinyl/reveal-layer1.png",
     layer2: "/assets/vinyl/reveal-layer2.png",
     layer3: "/assets/vinyl/reveal-layer3.png",
   },
+  vinylDescription: "Lorem ipsum dolor sit amet consectetur adipiscing elit Ut et massa mi.",
+  vhsDescription: "Lorem ipsum dolor sit amet consectetur adipiscing elit Ut et massa mi.",
 };
 
 function mergeAlbum(doc, fallback) {
@@ -63,12 +68,16 @@ function mergeAlbum(doc, fallback) {
     songDescription: doc.songDescription || fallback.songDescription,
     wallpaperPhotos,
     stackImageUrls,
+    stackDescription: doc.stackDescription || fallback.stackDescription,
     fisheyeVideoUrl: doc.fisheyeVideoUrl || fallback.fisheyeVideoUrl,
+    fisheyeDescription: doc.fisheyeDescription || fallback.fisheyeDescription,
     vinylLayerUrls: {
       layer1: doc.vinylLayerUrls?.layer1 || fallback.vinylLayerUrls.layer1,
       layer2: doc.vinylLayerUrls?.layer2 || fallback.vinylLayerUrls.layer2,
       layer3: doc.vinylLayerUrls?.layer3 || fallback.vinylLayerUrls.layer3,
     },
+    vinylDescription: doc.vinylDescription || fallback.vinylDescription,
+    vhsDescription: doc.vhsDescription || fallback.vhsDescription,
   };
 }
 
@@ -80,14 +89,18 @@ async function fetchAlbum(slug) {
         title,
         "songs": songs[]{ number, title, "audioUrl": audio.asset->url },
         songDescription,
-        "wallpaperPhotos": wallpaperPhotos[]{ "url": image.asset->url, caption },
+        "wallpaperPhotos": wallpaperPhotos[]{ "url": image.asset->url, caption, description },
         "stackImageUrls": stackImages[].asset->url,
+        stackDescription,
         "fisheyeVideoUrl": fisheyeVideo.asset->url,
+        fisheyeDescription,
         "vinylLayerUrls": {
           "layer1": vinylLayers.layer1.asset->url,
           "layer2": vinylLayers.layer2.asset->url,
           "layer3": vinylLayers.layer3.asset->url
-        }
+        },
+        vinylDescription,
+        vhsDescription
       }`,
       { slug }
     );
@@ -809,6 +822,18 @@ renderSongCollection(ALBUM);
   // tile off through whichever viewport edge it's already closest to.
   // ---------------------------------------------------------------------
 
+  // One description per tile *type* (not per cycling photo/frame), except
+  // the plain wallpaper tiles -- those cycle through 3 different photos in
+  // the same slot, so tile.lastIndex (render()'s own record of which photo
+  // index is currently assigned there) picks the right one's description.
+  function getTileDescription(tile) {
+    if (tile.isStack) return ALBUM.stackDescription;
+    if (tile.isVideo) return ALBUM.fisheyeDescription;
+    if (tile.isVinyl) return ALBUM.vinylDescription;
+    if (tile.isVhs) return ALBUM.vhsDescription;
+    return ALBUM.wallpaperPhotos[tile.lastIndex]?.description;
+  }
+
   function enterFocus(tile) {
     if (isFocused) return;
     isFocused = true;
@@ -824,13 +849,43 @@ renderSongCollection(ALBUM);
 
     galleryEl.classList.add("focused");
 
+    // Caption + song-list fade: sized/positioned before the tile-centering
+    // loop below, since that loop needs the spacer's real (flex-laid-out)
+    // rect to center the tile against.
+    const captionWrapperEl = document.querySelector("[data-focus-caption-wrapper]");
+    const captionSpacerEl = document.querySelector("[data-focus-caption-spacer]");
+    const captionTextEl = document.querySelector("[data-focus-caption-text]");
+    const description = getTileDescription(tile);
+    let spacerRect = null;
+    if (captionWrapperEl && captionSpacerEl && captionTextEl) {
+      captionSpacerEl.style.width = `${(tile.w * FOCUS_SCALE).toFixed(1)}px`;
+      captionSpacerEl.style.height = `${(tile.h * FOCUS_SCALE).toFixed(1)}px`;
+      captionTextEl.textContent = description || "";
+      captionTextEl.classList.toggle("is-empty", !description);
+      captionWrapperEl.classList.add("is-visible");
+      // Forces a synchronous layout so this rect reflects the real flex
+      // centering (tile-sized spacer + gap + this exact caption's rendered
+      // height), not last frame's stale position.
+      spacerRect = captionSpacerEl.getBoundingClientRect();
+    }
+    document.querySelector(".song-collection")?.classList.add("is-hidden");
+
     for (const t of tiles) {
       t.el.style.transition = `transform ${FOCUS_TRANSITION_MS}ms cubic-bezier(0.16, 1, 0.3, 1)`;
 
       if (t === tile) {
         t.el.style.zIndex = "20";
-        const left = window.innerWidth / 2 - t.w / 2;
-        const top = window.innerHeight / 2 - t.h / 2;
+        // scale() below expands the tile around its own (unscaled) center,
+        // wherever translate3d put it -- so to land the *scaled* box exactly
+        // on spacerRect (which is already sized to the scaled footprint),
+        // the translate3d target has to be spacerRect's center offset back
+        // by the tile's own half-size, not spacerRect's top-left corner.
+        const left = spacerRect
+          ? spacerRect.left + (t.w * FOCUS_SCALE) / 2 - t.w / 2
+          : window.innerWidth / 2 - t.w / 2;
+        const top = spacerRect
+          ? spacerRect.top + (t.h * FOCUS_SCALE) / 2 - t.h / 2
+          : window.innerHeight / 2 - t.h / 2;
         t.el.style.transform = `translate3d(${left.toFixed(1)}px, ${top.toFixed(1)}px, 0) scale(${FOCUS_SCALE})`;
 
         // The stack tile rests flat (rotateY(0), see .stack-3d) so it reads
@@ -878,6 +933,9 @@ renderSongCollection(ALBUM);
   function exitFocus() {
     if (!isFocused) return;
     isFocused = false;
+
+    document.querySelector("[data-focus-caption-wrapper]")?.classList.remove("is-visible");
+    document.querySelector(".song-collection")?.classList.remove("is-hidden");
 
     // Tilt-follow only runs while the stack is focused -- drop it back to
     // resting so it doesn't stay leaned wherever the cursor last was.

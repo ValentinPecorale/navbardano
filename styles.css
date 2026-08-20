@@ -612,6 +612,16 @@ body {
   align-items: flex-start;
   width: 100%;
   color: #5c0000;
+  transition: opacity 600ms ease;
+}
+
+/* Set alongside enterFocus()/exitFocus() (infinite-gallery.js) so the song
+   list and its description get out of the way while a tile is focused --
+   opacity alone would leave .song-row--playable's pointer-events:auto
+   clickable through the fade, hence pointer-events:none here too. */
+.song-collection.is-hidden {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .song-list {
@@ -682,6 +692,56 @@ body {
   letter-spacing: -0.6px;
   text-transform: uppercase;
   text-align: justify;
+}
+
+/* Focus-mode caption -- a full-viewport flex column that vertically centers
+   an invisible spacer (sized in JS to the focused tile's own on-screen
+   footprint, see enterFocus()) plus this caption text as one group, so the
+   text ends up real-flex-centered directly below the tile rather than
+   pinned at a fixed offset. The focused tile itself isn't actually a DOM
+   child here (see enterFocus()'s comment on why not) -- enterFocus() reads
+   the spacer's rendered rect and positions the real tile to match it. */
+.focus-caption-wrapper {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  pointer-events: none;
+  z-index: 19;
+  opacity: 0;
+  transition: opacity 600ms ease;
+}
+
+.focus-caption-wrapper.is-visible {
+  opacity: 1;
+}
+
+.focus-caption-spacer {
+  flex: none;
+}
+
+.focus-caption-text {
+  flex: none;
+  width: 100%;
+  max-width: 421px;
+  margin: 0;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 500;
+  font-size: 12px;
+  line-height: 14px;
+  letter-spacing: -0.6px;
+  text-transform: uppercase;
+  text-align: justify;
+  color: #5c0000;
+}
+
+.focus-caption-text.is-empty {
+  display: none;
 }
 
 /* Infinite gallery -- ported from infinitegallerytraining, scoped to sit

@@ -68,6 +68,13 @@ export const album = defineType({
           fields: [
             defineField({name: 'image', title: 'Image', type: 'image', validation: (rule) => rule.required()}),
             defineField({name: 'caption', title: 'Caption', type: 'string'}),
+            defineField({
+              name: 'description',
+              title: 'Description',
+              description: 'Shown below this photo when its tile is focused (clicked) on the site.',
+              type: 'text',
+              rows: 3,
+            }),
           ],
           preview: {
             select: {media: 'image', title: 'caption'},
@@ -96,12 +103,26 @@ export const album = defineType({
         ),
     }),
     defineField({
+      name: 'stackDescription',
+      title: 'Photo stack description',
+      description: 'Shown below the photo stack tile when it is focused (clicked) on the site.',
+      type: 'text',
+      rows: 3,
+    }),
+    defineField({
       name: 'fisheyeVideo',
       title: 'Fisheye video',
       description:
         'The looping video shown through the fisheye-lens tile. Leave empty to use the placeholder video.',
       type: 'file',
       options: {accept: 'video/*'},
+    }),
+    defineField({
+      name: 'fisheyeDescription',
+      title: 'Fisheye video description',
+      description: 'Shown below the fisheye video tile when it is focused (clicked) on the site.',
+      type: 'text',
+      rows: 3,
     }),
     defineField({
       name: 'vinylLayers',
@@ -114,6 +135,20 @@ export const album = defineType({
         defineField({name: 'layer2', title: 'Layer 2 (revealed by painting)', type: 'image'}),
         defineField({name: 'layer3', title: 'Layer 3 (fully revealed)', type: 'image'}),
       ],
+    }),
+    defineField({
+      name: 'vinylDescription',
+      title: 'Vinyl record description',
+      description: 'Shown below the vinyl record tile when it is focused (clicked) on the site.',
+      type: 'text',
+      rows: 3,
+    }),
+    defineField({
+      name: 'vhsDescription',
+      title: 'VHS tile description',
+      description: 'Shown below the VHS tape tile when it is focused (clicked) on the site.',
+      type: 'text',
+      rows: 3,
     }),
   ],
   preview: {
