@@ -396,6 +396,15 @@ renderSongCollection(ALBUM);
   // ---------------------------------------------------------------------
 
   const galleryEl = document.getElementById("gallery");
+  // #gallery itself is pointer-events:none (tiles opt back in individually,
+  // see styles.css) so empty wallpaper gaps click through to the text
+  // underneath -- but that also means a wheel/trackpad scroll starting over
+  // a gap would never hit #gallery's own listener. This ancestor still has
+  // its default pointer-events:auto, so it catches wheel events everywhere
+  // in the section (gaps included) while wheel events over an actual tile
+  // still bubble up through #gallery and arrive here too -- one listener,
+  // no double-firing either way.
+  const galleryScrollScopeEl = galleryEl.closest("[data-viewport-wrapper-cms]") || galleryEl.parentElement;
   const canvasEl = document.getElementById("canvas");
   const hintEl = document.getElementById("hint");
   const coordsEl = document.getElementById("coords");
@@ -1476,7 +1485,7 @@ renderSongCollection(ALBUM);
   window.addEventListener("pointermove", onPointerMove);
   window.addEventListener("pointerup", onPointerUp);
   window.addEventListener("pointercancel", onPointerUp);
-  galleryEl.addEventListener("wheel", onWheel, { passive: false });
+  galleryScrollScopeEl.addEventListener("wheel", onWheel, { passive: false });
   window.addEventListener("resize", onResize);
 
   // Tilt-follow only runs while the stack is the focused tile, but then
