@@ -588,11 +588,13 @@ body {
   min-height: 0;
   display: flex;
   align-items: center;
-  /* .wrapper has no interactive content of its own (song-collection is
-     plain text), but its flex box still spans nearly the whole section and
-     paints above #gallery -- pointer-events:none lets drag/wheel/click
-     reach the gallery underneath even where the song list visually
-     overlaps it, so the gallery stays interactive with both layers shown. */
+  /* .wrapper's flex box spans nearly the whole section and paints above
+     #gallery -- pointer-events:none lets drag/wheel/click reach the
+     gallery underneath even where the song list visually overlaps it, so
+     the gallery stays interactive with both layers shown. song-row's own
+     pointer-events:auto (below) punches a click-through hole back in for
+     playable songs specifically -- everything else here still passes
+     through to the gallery untouched. */
   pointer-events: none;
 }
 
@@ -620,6 +622,10 @@ body {
 .song-row--playable {
   cursor: pointer;
   transition: opacity 0.2s ease;
+  /* .wrapper (an ancestor) sets pointer-events:none so gallery drag/click
+     passes through the song list everywhere else -- re-enable it just for
+     playable rows so they're actually clickable. */
+  pointer-events: auto;
 }
 
 .song-row--playable:hover {
