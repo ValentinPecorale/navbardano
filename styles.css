@@ -617,7 +617,7 @@ body {
 .song-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0;
   flex: 1;
   min-width: 0;
 }
@@ -627,6 +627,7 @@ body {
   align-items: flex-start;
   gap: 11px;
   width: 100%;
+  padding: 3px 0;
 }
 
 .song-row--playable {
