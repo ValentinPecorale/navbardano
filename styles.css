@@ -993,3 +993,21 @@ body {
 .tile.vinyl:hover .vinyl-canvas {
   transform: scale(1.06);
 }
+
+/* Item 5 shirt -- same rig as item 1 vhs above. */
+.tile.shirt .tile-inner {
+  background: none;
+}
+
+.shirt-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tile.shirt:hover .shirt-canvas {
+  transform: scale(1.06);
+}

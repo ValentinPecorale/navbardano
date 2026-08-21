@@ -150,6 +150,13 @@ export const album = defineType({
       type: 'text',
       rows: 3,
     }),
+    defineField({
+      name: 'shirtDescription',
+      title: 'T-shirt tile description',
+      description: 'Shown below the t-shirt tile when it is focused (clicked) on the site.',
+      type: 'text',
+      rows: 3,
+    }),
   ],
   preview: {
     select: {title: 'title', subtitle: 'slug.current'},

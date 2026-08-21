@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 import { createVinylReveal } from "./vinyl-reveal.js";
 import { createClient } from "@sanity/client";
 
@@ -46,6 +47,7 @@ const FALLBACK_ALBUM = {
   },
   vinylDescription: "Lorem ipsum dolor sit amet consectetur adipiscing elit Ut et massa mi.",
   vhsDescription: "Lorem ipsum dolor sit amet consectetur adipiscing elit Ut et massa mi.",
+  shirtDescription: "Lorem ipsum dolor sit amet consectetur adipiscing elit Ut et massa mi.",
 };
 
 function mergeAlbum(doc, fallback) {
@@ -78,6 +80,7 @@ function mergeAlbum(doc, fallback) {
     },
     vinylDescription: doc.vinylDescription || fallback.vinylDescription,
     vhsDescription: doc.vhsDescription || fallback.vhsDescription,
+    shirtDescription: doc.shirtDescription || fallback.shirtDescription,
   };
 }
 
@@ -100,7 +103,8 @@ async function fetchAlbum(slug) {
           "layer3": vinylLayers.layer3.asset->url
         },
         vinylDescription,
-        vhsDescription
+        vhsDescription,
+        shirtDescription
       }`,
       { slug }
     );
@@ -296,6 +300,13 @@ renderSongCollection(ALBUM);
 //                             while focused. Ported to vanilla JS in
 //                             vinyl-reveal.js -- see createVinylReveal()
 //                             code: isVinyl / vinylTile / createVinylReveal()
+//   item 5 shirt          -- 3D t-shirt (Three.js + GLTFLoader + DRACOLoader,
+//                             the model is Draco-compressed), same
+//                             resting-vs-3D-mode split as item 1 vhs. Front
+//                             and back body panels get two different
+//                             photos as textures (sleeves/ribbing keep the
+//                             model's own material, undressed).
+//                             code: isShirt / shirtTile / setupShirt()
 // ---------------------------------------------------------------------
 
 (() => {
@@ -355,6 +366,20 @@ renderSongCollection(ALBUM);
   const VINYL_LAYER1_SRC = ALBUM.vinylLayerUrls.layer1;
   const VINYL_LAYER2_SRC = ALBUM.vinylLayerUrls.layer2;
   const VINYL_LAYER3_SRC = ALBUM.vinylLayerUrls.layer3;
+
+  // A fifth pinned tile (item 5 shirt) is another real 3D model, same
+  // resting-vs-3D-mode split as item 1 vhs above. Draco-compressed
+  // (6.8MB -> 684KB) since GLTFLoader needs a DRACOLoader attached to read
+  // it -- see setupShirt(). The model's front/back body panels (named
+  // nodes "Body_Front_Node_4"/"Body_Back_Node_5" in the source file) share
+  // one untextured material in the original export; setupShirt() clones it
+  // per side so each can get its own photo.
+  const SHIRT_MODEL_SRC = "/assets/shirt/dano_shirt.glb";
+  const SHIRT_FRONT_TEXTURE_SRC = "/assets/shirt/front.webp";
+  const SHIRT_BACK_TEXTURE_SRC = "/assets/shirt/back.webp";
+  const SHIRT_TARGET_SIZE = 0.4; // model is rescaled so its largest dimension equals this, in Three.js scene units
+  const SHIRT_TILT_RANGE = 0.5; // rad each way the cursor can lean it off resting, once focused
+  const SHIRT_TILT_LERP = 0.08; // how quickly the tilt eases towards the cursor-driven target (and back to resting when unfocused)
 
   const DESKTOP_TILE_W = 300; // visible image width
   const DESKTOP_TILE_H = 380; // visible image height
@@ -488,6 +513,11 @@ renderSongCollection(ALBUM);
   let vinylTile = null; // the single tile designated as item 4 vinyl
   let vinylReveal = null; // { tick, dispose } handle from createVinylReveal(), or null once disposed
 
+  let shirtTile = null; // the single tile designated as item 5 shirt
+  let shirtThree = null; // { renderer, scene, camera, group } for shirtTile's canvas, or null once disposed
+  const shirtTiltCurrent = { x: 0, y: 0 }; // current (eased) lean, radians
+  const shirtTiltTarget = { x: 0, y: 0 }; // where it's easing towards -- cursor-driven while focused, resting (0,0) otherwise
+
   // ---------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------
@@ -566,6 +596,21 @@ renderSongCollection(ALBUM);
     vinylTile = null;
     vinylReveal = null;
 
+    // Fifth pinned slot for item 5 shirt -- same column as the others, row
+    // nudged forward until it clears the stack's, video's, vhs's, and
+    // vinyl's rows so all five land on distinct cells.
+    const shirtCol = stackCol;
+    let shirtRow = mod(stackRow + 3, rows);
+    if (shirtRow === videoRow) shirtRow = mod(shirtRow + 1, rows);
+    if (shirtRow === vhsRow) shirtRow = mod(shirtRow + 1, rows);
+    if (shirtRow === vinylRow) shirtRow = mod(shirtRow + 1, rows);
+    if (shirtRow === stackRow) shirtRow = mod(shirtRow + 1, rows);
+    if (shirtThree) shirtThree.renderer.dispose(); // release the old tile's WebGL context before buildGrid() drops its canvas
+    shirtTile = null;
+    shirtThree = null;
+    shirtTiltCurrent.x = shirtTiltTarget.x = 0;
+    shirtTiltCurrent.y = shirtTiltTarget.y = 0;
+
     const frag = document.createDocumentFragment();
 
     for (let j = 0; j < rows; j++) {
@@ -574,6 +619,7 @@ renderSongCollection(ALBUM);
         const isVideo = !isStack && i === videoCol && j === videoRow;
         const isVhs = !isStack && !isVideo && i === vhsCol && j === vhsRow;
         const isVinyl = !isStack && !isVideo && !isVhs && i === vinylCol && j === vinylRow;
+        const isShirt = !isStack && !isVideo && !isVhs && !isVinyl && i === shirtCol && j === shirtRow;
 
         const el = document.createElement("div");
         el.className = isStack
@@ -584,7 +630,9 @@ renderSongCollection(ALBUM);
               ? "tile vhs"
               : isVinyl
                 ? "tile vinyl"
-                : "tile";
+                : isShirt
+                  ? "tile shirt"
+                  : "tile";
         const box = isStack ? stackBoxSize() : { w: TILE_W, h: TILE_H };
         el.style.width = `${box.w}px`;
         el.style.height = `${box.h}px`;
@@ -604,6 +652,7 @@ renderSongCollection(ALBUM);
         let vhsCanvas = null;
         let vinylCanvas = null;
         let vinylFluidWrapper = null;
+        let shirtCanvas = null;
 
         if (isStack) {
           img = document.createElement("img");
@@ -662,6 +711,10 @@ renderSongCollection(ALBUM);
           vinylCanvas = document.createElement("canvas");
           vinylCanvas.className = "vinyl-canvas";
           inner.appendChild(vinylCanvas);
+        } else if (isShirt) {
+          shirtCanvas = document.createElement("canvas");
+          shirtCanvas.className = "shirt-canvas";
+          inner.appendChild(shirtCanvas);
         } else {
           img = document.createElement("img");
           img.draggable = false;
@@ -689,6 +742,7 @@ renderSongCollection(ALBUM);
           isVideo,
           isVhs,
           isVinyl,
+          isShirt,
         };
         tiles.push(tile);
         if (isStack) {
@@ -717,6 +771,10 @@ renderSongCollection(ALBUM);
             tileHeight: TILE_H,
             isFocusedFn: () => isFocused && focusedTile === vinylTile,
           });
+        }
+        if (isShirt) {
+          shirtTile = tile;
+          shirtThree = setupShirt(shirtCanvas);
         }
       }
     }
@@ -769,6 +827,10 @@ renderSongCollection(ALBUM);
       // Same for item 4 vinyl -- it just keeps spinning in place, drawn by
       // the independent vinylTick() loop.
       if (tile.isVinyl) continue;
+
+      // Same for item 5 shirt -- it just keeps spinning in place, drawn by
+      // the independent shirtTick() loop.
+      if (tile.isShirt) continue;
 
       // A tile's image must only change at the instant it wraps from one
       // edge of the buffer to the other (which happens off-screen). Using
@@ -831,6 +893,7 @@ renderSongCollection(ALBUM);
     if (tile.isVideo) return ALBUM.fisheyeDescription;
     if (tile.isVinyl) return ALBUM.vinylDescription;
     if (tile.isVhs) return ALBUM.vhsDescription;
+    if (tile.isShirt) return ALBUM.shirtDescription;
     return ALBUM.wallpaperPhotos[tile.lastIndex]?.description;
   }
 
@@ -960,6 +1023,12 @@ renderSongCollection(ALBUM);
     // doesn't spring back on unfocus either; orbiting it leaves it exactly
     // where you left it, and painting is permanent (a latched reveal), so
     // there's nothing to ease back to.
+
+    // Same idea for item 5 shirt as item 1 vhs above.
+    if (focusedTile === shirtTile) {
+      shirtTiltTarget.x = 0;
+      shirtTiltTarget.y = 0;
+    }
 
     galleryEl.classList.remove("focused");
     if (focusedTile) focusedTile.el.style.zIndex = "";
@@ -1400,6 +1469,199 @@ renderSongCollection(ALBUM);
   }
 
   // ---------------------------------------------------------------------
+  // Item 5 shirt -- same rig as item 1 vhs above (GLTFLoader, centered/
+  // scaled into a group, bounding-sphere camera fit, resting-vs-3D-mode
+  // tilt), plus texture setup: the model's front and back body panels
+  // ("Body_Front_Node_4"/"Body_Back_Node_5" in the source file) share one
+  // untextured material in the export, so each gets its own material clone
+  // + photo here rather than fighting over one shared texture slot.
+  // ---------------------------------------------------------------------
+
+  function setupShirt(canvas) {
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setClearColor(0x000000, 0);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.1;
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(35, TILE_W / TILE_H, 0.01, 10);
+    const viewDir = new THREE.Vector3(0, 0, 1); // straight-on, front-facing shot
+    camera.up.set(0, 1, 0);
+
+    const keyLight = new THREE.DirectionalLight(0xffffff, 2.2);
+    keyLight.position.set(0.3, 1, 0.6);
+    scene.add(keyLight);
+    const fillLight = new THREE.DirectionalLight(0x9fb8ff, 0.6);
+    fillLight.position.set(-0.3, 0.6, -0.6);
+    scene.add(fillLight);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+    const group = new THREE.Group();
+    scene.add(group);
+
+    const dracoLoader = new DRACOLoader();
+    dracoLoader.setDecoderPath("https://cdn.jsdelivr.net/npm/three@0.183.0/examples/jsm/libs/draco/");
+    const gltfLoader = new GLTFLoader();
+    gltfLoader.setDRACOLoader(dracoLoader);
+
+    const textureLoader = new THREE.TextureLoader();
+    const frontTexture = textureLoader.load(SHIRT_FRONT_TEXTURE_SRC);
+    frontTexture.colorSpace = THREE.SRGBColorSpace;
+    const backTexture = textureLoader.load(SHIRT_BACK_TEXTURE_SRC);
+    backTexture.colorSpace = THREE.SRGBColorSpace;
+
+    // The source material has no baseColorFactor/metallicFactor set, which
+    // glTF resolves to fully metallic (metalness 1) by spec default --
+    // under directional-only lighting with no environment map, that reads
+    // as a flat gray reflective surface everywhere and all but hides any
+    // base color map. Cotton isn't metallic. Applied to every mesh first
+    // (a black cloth base for the untextured sleeves/ribbing, matching the
+    // reference photos' black shirt), then applyTextureToNode() below
+    // layers .map + a white base color on top for the two textured panels
+    // specifically, so the photo isn't tinted by this black.
+    function fixClothMaterial(root) {
+      root.traverse((child) => {
+        if (!child.isMesh) return;
+        const material = child.material.clone();
+        material.color.set(0x111111);
+        material.metalness = 0;
+        material.roughness = 0.85;
+        material.needsUpdate = true;
+        child.material = material;
+      });
+    }
+
+    // The source file's TEXCOORD_0 isn't a real [0,1] UV unwrap -- it's raw
+    // planar coordinates (roughly matching each panel's own flat position,
+    // ranging well into the hundreds in both directions). Left as-is, every
+    // one of those out-of-range samples clamps to the texture's edge pixel
+    // (THREE's default wrap mode), which is why a texture applied directly
+    // rendered as a near-flat color instead of the photo. Rescaling into
+    // [0,1] -- using one shared min/max across every mesh under the node,
+    // not each mesh's own, so multiple panels making up one side (front
+    // has 3) stay aligned to each other -- turns that same raw planar data
+    // into a working front-on projection of the photo onto the panel.
+    function normalizeUVs(root, nodeName) {
+      const node = root.getObjectByName(nodeName);
+      if (!node) return;
+      const uvAttrs = [];
+      node.traverse((child) => {
+        if (child.isMesh && child.geometry.attributes.uv) uvAttrs.push(child.geometry.attributes.uv);
+      });
+      if (!uvAttrs.length) return;
+      let minU = Infinity, maxU = -Infinity, minV = Infinity, maxV = -Infinity;
+      for (const uv of uvAttrs) {
+        for (let i = 0; i < uv.count; i++) {
+          const u = uv.getX(i);
+          const v = uv.getY(i);
+          if (u < minU) minU = u;
+          if (u > maxU) maxU = u;
+          if (v < minV) minV = v;
+          if (v > maxV) maxV = v;
+        }
+      }
+      const rangeU = maxU - minU || 1;
+      const rangeV = maxV - minV || 1;
+      for (const uv of uvAttrs) {
+        for (let i = 0; i < uv.count; i++) {
+          uv.setXY(i, (uv.getX(i) - minU) / rangeU, (uv.getY(i) - minV) / rangeV);
+        }
+        uv.needsUpdate = true;
+      }
+    }
+
+    // Swaps in a clone of a mesh's existing material with .map replaced,
+    // for every mesh under the named node -- cloning matters since front/
+    // back share the very same material instance in the source file, so
+    // setting .map directly would paint both sides with whichever texture
+    // ran last.
+    function applyTextureToNode(root, nodeName, texture) {
+      const node = root.getObjectByName(nodeName);
+      if (!node) return;
+      node.traverse((child) => {
+        if (!child.isMesh) return;
+        const material = child.material.clone();
+        material.map = texture;
+        material.color.set(0xffffff);
+        material.needsUpdate = true;
+        child.material = material;
+      });
+    }
+
+    gltfLoader.load(SHIRT_MODEL_SRC, (gltf) => {
+      const model = gltf.scene;
+
+      fixClothMaterial(model);
+      normalizeUVs(model, "Body_Front_Node_4");
+      normalizeUVs(model, "Body_Back_Node_5");
+      applyTextureToNode(model, "Body_Front_Node_4", frontTexture);
+      applyTextureToNode(model, "Body_Back_Node_5", backTexture);
+
+      const box = new THREE.Box3().setFromObject(model);
+      const size = box.getSize(new THREE.Vector3());
+      const maxDim = Math.max(size.x, size.y, size.z) || 1;
+      model.scale.setScalar(SHIRT_TARGET_SIZE / maxDim);
+
+      const box2 = new THREE.Box3().setFromObject(model);
+      const center2 = box2.getCenter(new THREE.Vector3());
+      model.position.sub(center2);
+
+      group.add(model);
+
+      // Same rotation-invariant bounding-sphere camera fit as item 1 vhs.
+      const sphere = box2.getBoundingSphere(new THREE.Sphere());
+      const vFov = THREE.MathUtils.degToRad(camera.fov);
+      const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
+      const distV = sphere.radius / Math.sin(vFov / 2);
+      const distH = sphere.radius / Math.sin(hFov / 2);
+      const distance = Math.max(distV, distH) * 1.15;
+
+      camera.position.copy(viewDir).multiplyScalar(distance);
+      camera.near = distance / 100;
+      camera.far = distance * 10;
+      camera.updateProjectionMatrix();
+      camera.lookAt(0, 0, 0);
+    });
+
+    renderer.setSize(TILE_W, TILE_H, false);
+
+    return { renderer, scene, camera, group };
+  }
+
+  function applyShirtTilt(clientX, clientY) {
+    if (!shirtTile) return;
+    const rect = shirtTile.el.getBoundingClientRect();
+    const normalizedX = clamp((clientX - (rect.left + rect.width / 2)) / (rect.width / 2), -1, 1);
+    const normalizedY = clamp((clientY - (rect.top + rect.height / 2)) / (rect.height / 2), -1, 1);
+    shirtTiltTarget.y = normalizedX * SHIRT_TILT_RANGE;
+    shirtTiltTarget.x = normalizedY * SHIRT_TILT_RANGE;
+  }
+
+  function shirtTick() {
+    if (shirtTile && shirtThree) {
+      const { renderer, scene, camera, group } = shirtThree;
+
+      const target = isFocused && focusedTile === shirtTile ? shirtTiltTarget : { x: 0, y: 0 };
+      shirtTiltCurrent.x = lerp(shirtTiltCurrent.x, target.x, SHIRT_TILT_LERP);
+      shirtTiltCurrent.y = lerp(shirtTiltCurrent.y, target.y, SHIRT_TILT_LERP);
+      group.rotation.x = shirtTiltCurrent.x;
+      group.rotation.y = shirtTiltCurrent.y;
+
+      const canvas = renderer.domElement;
+      if (canvas.width !== TILE_W || canvas.height !== TILE_H) {
+        renderer.setSize(TILE_W, TILE_H, false);
+        camera.aspect = TILE_W / TILE_H;
+        camera.updateProjectionMatrix();
+      }
+
+      renderer.render(scene, camera);
+    }
+    requestAnimationFrame(shirtTick);
+  }
+
+  // ---------------------------------------------------------------------
   // Item 4 vinyl -- setup lives in vinyl-reveal.js (createVinylReveal()),
   // ported directly off vinylprocess's <HoverRevealShader>: same two-mask
   // paint-to-reveal, same stroke-snapshot gate, same manual orbit. This
@@ -1612,6 +1874,7 @@ renderSongCollection(ALBUM);
     // Item 4 vinyl's orbit tracks the cursor via its own window pointermove
     // listener (see createManualOrbit() in vinyl-reveal.js), gated by its
     // own isFocusedFn -- nothing needed here.
+    if (isFocused && focusedTile === shirtTile) applyShirtTilt(e.clientX, e.clientY);
   });
 
   preloadImages();
@@ -1621,4 +1884,5 @@ renderSongCollection(ALBUM);
   requestAnimationFrame(videoTick);
   requestAnimationFrame(vhsTick);
   requestAnimationFrame(vinylTick);
+  requestAnimationFrame(shirtTick);
 })();
