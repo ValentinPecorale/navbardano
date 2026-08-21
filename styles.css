@@ -627,6 +627,16 @@ body {
   pointer-events: none;
 }
 
+/* .song-row--playable's own pointer-events:auto (below) always wins for
+   itself over an ancestor's pointer-events:none -- pointer-events isn't
+   blocked from being re-enabled by a descendant just because an ancestor
+   set none, so .song-collection.is-hidden's pointer-events:none above
+   doesn't actually stop a playable row from still being clickable while
+   faded out. This descendant selector is specific enough to override it. */
+.song-collection.is-hidden .song-row--playable {
+  pointer-events: none;
+}
+
 .song-list {
   display: flex;
   flex-direction: column;
