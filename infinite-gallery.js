@@ -1555,13 +1555,21 @@ renderSongCollection(ALBUM);
 
       group.add(model);
 
-      // Same rotation-invariant bounding-sphere camera fit as item 1 vhs.
+      // Same rotation-invariant bounding-sphere camera fit as item 1 vhs,
+      // just brought in closer (10% padding vs vhs's 15%, and on the
+      // *inside* -- 0.9x instead of 1.x -- rather than just less outside
+      // padding) so the shirt reads noticeably bigger in the tile, about
+      // 28% larger on screen than the original 1.15x. Safe to crop this
+      // tight since the fit is against the bounding *sphere*, which already
+      // accounts for every possible rotation, so the model can spin/tilt
+      // freely via the drag control without ever clipping past the tile
+      // edges even at this closer distance.
       const sphere = box2.getBoundingSphere(new THREE.Sphere());
       const vFov = THREE.MathUtils.degToRad(camera.fov);
       const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
       const distV = sphere.radius / Math.sin(vFov / 2);
       const distH = sphere.radius / Math.sin(hFov / 2);
-      const distance = Math.max(distV, distH) * 1.15;
+      const distance = Math.max(distV, distH) * 0.9;
 
       camera.position.copy(viewDir).multiplyScalar(distance);
       camera.near = distance / 100;
