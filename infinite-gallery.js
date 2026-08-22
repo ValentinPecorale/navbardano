@@ -369,14 +369,10 @@ renderSongCollection(ALBUM);
 
   // A fifth pinned tile (item 5 shirt) is another real 3D model, same
   // resting-vs-3D-mode split as item 1 vhs above. Draco-compressed
-  // (6.8MB -> 684KB) since GLTFLoader needs a DRACOLoader attached to read
-  // it -- see setupShirt(). The model's front/back body panels (named
-  // nodes "Body_Front_Node_4"/"Body_Back_Node_5" in the source file) share
-  // one untextured material in the original export; setupShirt() clones it
-  // per side so each can get its own photo.
-  const SHIRT_MODEL_SRC = "/assets/shirt/dano_shirt.glb";
-  const SHIRT_FRONT_TEXTURE_SRC = "/assets/shirt/front.webp";
-  const SHIRT_BACK_TEXTURE_SRC = "/assets/shirt/back.webp";
+  // (2.24MB source, stripped of the mannequin/shoes meshes and its diffuse
+  // texture since the shirt renders as a solid color -> 88KB) since
+  // GLTFLoader needs a DRACOLoader attached to read it -- see setupShirt().
+  const SHIRT_MODEL_SRC = "/assets/shirt/zara_shirt.glb";
   const SHIRT_TARGET_SIZE = 0.4; // model is rescaled so its largest dimension equals this, in Three.js scene units
   const SHIRT_TILT_RANGE = 0.5; // rad each way the cursor can lean it off resting, once focused
   const SHIRT_TILT_LERP = 0.08; // how quickly the tilt eases towards the cursor-driven target (and back to resting when unfocused)
@@ -1506,85 +1502,18 @@ renderSongCollection(ALBUM);
     const gltfLoader = new GLTFLoader();
     gltfLoader.setDRACOLoader(dracoLoader);
 
-    const textureLoader = new THREE.TextureLoader();
-    const frontTexture = textureLoader.load(SHIRT_FRONT_TEXTURE_SRC);
-    frontTexture.colorSpace = THREE.SRGBColorSpace;
-    const backTexture = textureLoader.load(SHIRT_BACK_TEXTURE_SRC);
-    backTexture.colorSpace = THREE.SRGBColorSpace;
-
     // The source material has no baseColorFactor/metallicFactor set, which
     // glTF resolves to fully metallic (metalness 1) by spec default --
     // under directional-only lighting with no environment map, that reads
-    // as a flat gray reflective surface everywhere and all but hides any
-    // base color map. Cotton isn't metallic. Applied to every mesh first
-    // (a black cloth base for the untextured sleeves/ribbing, matching the
-    // reference photos' black shirt), then applyTextureToNode() below
-    // layers .map + a white base color on top for the two textured panels
-    // specifically, so the photo isn't tinted by this black.
+    // as a flat gray reflective surface. Cotton isn't metallic, so
+    // metalness is forced to 0; color is forced to solid black.
     function fixClothMaterial(root) {
       root.traverse((child) => {
         if (!child.isMesh) return;
         const material = child.material.clone();
-        material.color.set(0x111111);
+        material.color.set(0x000000);
         material.metalness = 0;
         material.roughness = 0.85;
-        material.needsUpdate = true;
-        child.material = material;
-      });
-    }
-
-    // The source file's TEXCOORD_0 isn't a real [0,1] UV unwrap -- it's raw
-    // planar coordinates (roughly matching each panel's own flat position,
-    // ranging well into the hundreds in both directions). Left as-is, every
-    // one of those out-of-range samples clamps to the texture's edge pixel
-    // (THREE's default wrap mode), which is why a texture applied directly
-    // rendered as a near-flat color instead of the photo. Rescaling into
-    // [0,1] -- using one shared min/max across every mesh under the node,
-    // not each mesh's own, so multiple panels making up one side (front
-    // has 3) stay aligned to each other -- turns that same raw planar data
-    // into a working front-on projection of the photo onto the panel.
-    function normalizeUVs(root, nodeName) {
-      const node = root.getObjectByName(nodeName);
-      if (!node) return;
-      const uvAttrs = [];
-      node.traverse((child) => {
-        if (child.isMesh && child.geometry.attributes.uv) uvAttrs.push(child.geometry.attributes.uv);
-      });
-      if (!uvAttrs.length) return;
-      let minU = Infinity, maxU = -Infinity, minV = Infinity, maxV = -Infinity;
-      for (const uv of uvAttrs) {
-        for (let i = 0; i < uv.count; i++) {
-          const u = uv.getX(i);
-          const v = uv.getY(i);
-          if (u < minU) minU = u;
-          if (u > maxU) maxU = u;
-          if (v < minV) minV = v;
-          if (v > maxV) maxV = v;
-        }
-      }
-      const rangeU = maxU - minU || 1;
-      const rangeV = maxV - minV || 1;
-      for (const uv of uvAttrs) {
-        for (let i = 0; i < uv.count; i++) {
-          uv.setXY(i, (uv.getX(i) - minU) / rangeU, (uv.getY(i) - minV) / rangeV);
-        }
-        uv.needsUpdate = true;
-      }
-    }
-
-    // Swaps in a clone of a mesh's existing material with .map replaced,
-    // for every mesh under the named node -- cloning matters since front/
-    // back share the very same material instance in the source file, so
-    // setting .map directly would paint both sides with whichever texture
-    // ran last.
-    function applyTextureToNode(root, nodeName, texture) {
-      const node = root.getObjectByName(nodeName);
-      if (!node) return;
-      node.traverse((child) => {
-        if (!child.isMesh) return;
-        const material = child.material.clone();
-        material.map = texture;
-        material.color.set(0xffffff);
         material.needsUpdate = true;
         child.material = material;
       });
@@ -1594,10 +1523,6 @@ renderSongCollection(ALBUM);
       const model = gltf.scene;
 
       fixClothMaterial(model);
-      normalizeUVs(model, "Body_Front_Node_4");
-      normalizeUVs(model, "Body_Back_Node_5");
-      applyTextureToNode(model, "Body_Front_Node_4", frontTexture);
-      applyTextureToNode(model, "Body_Back_Node_5", backTexture);
 
       const box = new THREE.Box3().setFromObject(model);
       const size = box.getSize(new THREE.Vector3());
