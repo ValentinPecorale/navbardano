@@ -371,11 +371,16 @@ renderSongCollection(ALBUM);
   // resting-vs-3D-mode split as item 1 vhs above. Draco-compressed
   // (2.24MB source, which fused a full outfit + mannequin + shoes into one
   // mesh -- isolated to just the shirt's disconnected mesh islands
-  // [torso front/back, sleeves, collar] via connected-component analysis,
-  // dropped the diffuse texture since the shirt renders as a solid color
-  // -> 72KB; the matching pants-only split lives at
-  // /assets/pants/zara_pants.glb, unused for now) since GLTFLoader needs a
-  // DRACOLoader attached to read it -- see setupShirt().
+  // [torso front/back, sleeves, collar] via connected-component analysis;
+  // the matching pants-only split lives at /assets/pants/zara_pants.glb,
+  // unused for now -> 149KB) since GLTFLoader needs a DRACOLoader attached
+  // to read it -- see setupShirt(). The front/back torso panels each carry
+  // their own baked-in print design (front/back.jpg, downsized to 1024px
+  // and planar-projected onto that panel's own UVs at build time -- the
+  // panels aren't part of the model's original UV unwrap); sleeves and
+  // collar are a separate plain-black-material primitive. All three
+  // primitives already carry correct metalness/roughness/baseColor, so
+  // unlike the old dano_shirt.glb this needs no runtime material fixup.
   const SHIRT_MODEL_SRC = "/assets/shirt/zara_shirt.glb";
   const SHIRT_TARGET_SIZE = 0.4; // model is rescaled so its largest dimension equals this, in Three.js scene units
   const SHIRT_TILT_RANGE = 0.5; // rad each way a vertical drag can pitch it off resting, once focused
@@ -1522,27 +1527,8 @@ renderSongCollection(ALBUM);
     const gltfLoader = new GLTFLoader();
     gltfLoader.setDRACOLoader(dracoLoader);
 
-    // The source material has no baseColorFactor/metallicFactor set, which
-    // glTF resolves to fully metallic (metalness 1) by spec default --
-    // under directional-only lighting with no environment map, that reads
-    // as a flat gray reflective surface. Cotton isn't metallic, so
-    // metalness is forced to 0; color is forced to solid black.
-    function fixClothMaterial(root) {
-      root.traverse((child) => {
-        if (!child.isMesh) return;
-        const material = child.material.clone();
-        material.color.set(0x000000);
-        material.metalness = 0;
-        material.roughness = 0.85;
-        material.needsUpdate = true;
-        child.material = material;
-      });
-    }
-
     gltfLoader.load(SHIRT_MODEL_SRC, (gltf) => {
       const model = gltf.scene;
-
-      fixClothMaterial(model);
 
       const box = new THREE.Box3().setFromObject(model);
       const size = box.getSize(new THREE.Vector3());
