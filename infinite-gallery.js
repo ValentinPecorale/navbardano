@@ -369,9 +369,13 @@ renderSongCollection(ALBUM);
 
   // A fifth pinned tile (item 5 shirt) is another real 3D model, same
   // resting-vs-3D-mode split as item 1 vhs above. Draco-compressed
-  // (2.24MB source, stripped of the mannequin/shoes meshes and its diffuse
-  // texture since the shirt renders as a solid color -> 88KB) since
-  // GLTFLoader needs a DRACOLoader attached to read it -- see setupShirt().
+  // (2.24MB source, which fused a full outfit + mannequin + shoes into one
+  // mesh -- isolated to just the shirt's disconnected mesh islands
+  // [torso front/back, sleeves, collar] via connected-component analysis,
+  // dropped the diffuse texture since the shirt renders as a solid color
+  // -> 72KB; the matching pants-only split lives at
+  // /assets/pants/zara_pants.glb, unused for now) since GLTFLoader needs a
+  // DRACOLoader attached to read it -- see setupShirt().
   const SHIRT_MODEL_SRC = "/assets/shirt/zara_shirt.glb";
   const SHIRT_TARGET_SIZE = 0.4; // model is rescaled so its largest dimension equals this, in Three.js scene units
   const SHIRT_TILT_RANGE = 0.5; // rad each way the cursor can lean it off resting, once focused
