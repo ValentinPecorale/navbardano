@@ -378,8 +378,12 @@ renderSongCollection(ALBUM);
   // DRACOLoader attached to read it -- see setupShirt().
   const SHIRT_MODEL_SRC = "/assets/shirt/zara_shirt.glb";
   const SHIRT_TARGET_SIZE = 0.4; // model is rescaled so its largest dimension equals this, in Three.js scene units
-  const SHIRT_TILT_RANGE = 0.5; // rad each way the cursor can lean it off resting, once focused
-  const SHIRT_TILT_LERP = 0.08; // how quickly the tilt eases towards the cursor-driven target (and back to resting when unfocused)
+  const SHIRT_TILT_RANGE = 0.5; // rad each way a vertical drag can pitch it off resting, once focused
+  const SHIRT_RETURN_LERP = 0.08; // how quickly rotation eases back to resting (0,0) once unfocused
+  const SHIRT_DRAG_SENSITIVITY = 0.0126; // rad of turntable spin per px of horizontal drag -- a full 360 (2*PI rad) over ~500px
+  const SHIRT_DRAG_PITCH_SENSITIVITY = 0.0033; // rad of pitch per px of vertical drag -- the full +-SHIRT_TILT_RANGE clamp over ~150px
+  const SHIRT_SPIN_DECAY = 0.94; // per-frame multiplier on leftover spin velocity after release -- ~11 frames (~180ms at 60fps) to halve
+  const SHIRT_MAX_SPIN_VELOCITY = 0.3; // rad/frame cap on release momentum, so a fast flick can't send it spinning wildly
 
   const DESKTOP_TILE_W = 300; // visible image width
   const DESKTOP_TILE_H = 380; // visible image height
@@ -515,8 +519,13 @@ renderSongCollection(ALBUM);
 
   let shirtTile = null; // the single tile designated as item 5 shirt
   let shirtThree = null; // { renderer, scene, camera, group } for shirtTile's canvas, or null once disposed
-  const shirtTiltCurrent = { x: 0, y: 0 }; // current (eased) lean, radians
-  const shirtTiltTarget = { x: 0, y: 0 }; // where it's easing towards -- cursor-driven while focused, resting (0,0) otherwise
+  let shirtRotX = 0; // current pitch, radians, clamped to +-SHIRT_TILT_RANGE -- vertical-drag-driven while focused, eased back to 0 otherwise
+  let shirtRotY = 0; // current turntable spin, radians, unclamped so a drag can carry it past a full 360 -- horizontal-drag-driven while focused, eased back to 0 otherwise
+  let shirtSpinVelocity = 0; // radians/frame of residual spin left over once a drag ends, decays in shirtTick() for a momentum-coast feel
+  let shirtDragActive = false; // true between a pointerdown on the focused shirt tile and its matching pointerup
+  let shirtDragPointerId = null;
+  let shirtDragLastX = 0;
+  let shirtDragLastY = 0;
 
   // ---------------------------------------------------------------------
   // Helpers
@@ -608,8 +617,11 @@ renderSongCollection(ALBUM);
     if (shirtThree) shirtThree.renderer.dispose(); // release the old tile's WebGL context before buildGrid() drops its canvas
     shirtTile = null;
     shirtThree = null;
-    shirtTiltCurrent.x = shirtTiltTarget.x = 0;
-    shirtTiltCurrent.y = shirtTiltTarget.y = 0;
+    shirtRotX = 0;
+    shirtRotY = 0;
+    shirtSpinVelocity = 0;
+    shirtDragActive = false;
+    shirtDragPointerId = null;
 
     const frag = document.createDocumentFragment();
 
@@ -1024,10 +1036,14 @@ renderSongCollection(ALBUM);
     // where you left it, and painting is permanent (a latched reveal), so
     // there's nothing to ease back to.
 
-    // Same idea for item 5 shirt as item 1 vhs above.
+    // Item 5 shirt drops any in-progress drag/spin on unfocus -- shirtTick()
+    // eases shirtRotX/shirtRotY back to resting (0,0) on its own once
+    // isFocused is false, same resting behavior as vhs above just driven by
+    // direct rotation state instead of a lerp-target pair.
     if (focusedTile === shirtTile) {
-      shirtTiltTarget.x = 0;
-      shirtTiltTarget.y = 0;
+      shirtDragActive = false;
+      shirtDragPointerId = null;
+      shirtSpinVelocity = 0;
     }
 
     galleryEl.classList.remove("focused");
@@ -1559,24 +1575,43 @@ renderSongCollection(ALBUM);
     return { renderer, scene, camera, group };
   }
 
-  function applyShirtTilt(clientX, clientY) {
-    if (!shirtTile) return;
-    const rect = shirtTile.el.getBoundingClientRect();
-    const normalizedX = clamp((clientX - (rect.left + rect.width / 2)) / (rect.width / 2), -1, 1);
-    const normalizedY = clamp((clientY - (rect.top + rect.height / 2)) / (rect.height / 2), -1, 1);
-    shirtTiltTarget.y = normalizedX * SHIRT_TILT_RANGE;
-    shirtTiltTarget.x = normalizedY * SHIRT_TILT_RANGE;
+  // Click-and-drag turntable control -- horizontal drag spins shirtRotY
+  // (unclamped, so it can carry all the way around past a full 360),
+  // vertical drag pitches shirtRotX within +-SHIRT_TILT_RANGE. Only called
+  // while shirtDragActive (set by the onPointerDown bypass below), and
+  // applies 1:1 to the drag delta -- no easing while the pointer is down,
+  // so the model feels directly grabbed rather than chasing the cursor.
+  function updateShirtDrag(clientX, clientY) {
+    if (!shirtDragActive) return;
+    const dx = clientX - shirtDragLastX;
+    const dy = clientY - shirtDragLastY;
+    shirtRotY += dx * SHIRT_DRAG_SENSITIVITY;
+    shirtRotX = clamp(shirtRotX + dy * SHIRT_DRAG_PITCH_SENSITIVITY, -SHIRT_TILT_RANGE, SHIRT_TILT_RANGE);
+    shirtSpinVelocity = clamp(dx * SHIRT_DRAG_SENSITIVITY, -SHIRT_MAX_SPIN_VELOCITY, SHIRT_MAX_SPIN_VELOCITY);
+    shirtDragLastX = clientX;
+    shirtDragLastY = clientY;
   }
 
   function shirtTick() {
     if (shirtTile && shirtThree) {
       const { renderer, scene, camera, group } = shirtThree;
 
-      const target = isFocused && focusedTile === shirtTile ? shirtTiltTarget : { x: 0, y: 0 };
-      shirtTiltCurrent.x = lerp(shirtTiltCurrent.x, target.x, SHIRT_TILT_LERP);
-      shirtTiltCurrent.y = lerp(shirtTiltCurrent.y, target.y, SHIRT_TILT_LERP);
-      group.rotation.x = shirtTiltCurrent.x;
-      group.rotation.y = shirtTiltCurrent.y;
+      if (isFocused && focusedTile === shirtTile) {
+        if (!shirtDragActive) {
+          // Coast on whatever spin was left at release, decaying each frame;
+          // pitch has no momentum of its own, it just holds where it was let go.
+          shirtRotY += shirtSpinVelocity;
+          shirtSpinVelocity *= SHIRT_SPIN_DECAY;
+        }
+      } else {
+        // Unfocused (or mid-transition out) -- ease both axes back to resting.
+        shirtRotX = lerp(shirtRotX, 0, SHIRT_RETURN_LERP);
+        shirtRotY = lerp(shirtRotY, 0, SHIRT_RETURN_LERP);
+        shirtSpinVelocity = 0;
+      }
+
+      group.rotation.x = shirtRotX;
+      group.rotation.y = shirtRotY;
 
       const canvas = renderer.domElement;
       if (canvas.width !== TILE_W || canvas.height !== TILE_H) {
@@ -1629,6 +1664,23 @@ renderSongCollection(ALBUM);
     // pattern every other tile uses; paint/rotate are gated behind
     // isFocusedFn() regardless, so there's nothing to bypass for yet.
     if (isFocused && focusedTile === vinylTile && e.target.closest(".tile.vinyl")) {
+      return;
+    }
+
+    // Same reasoning as the vinyl bypass above, minus the multi-touch
+    // concern: a turntable drag on the focused shirt tile is a single-
+    // pointer horizontal gesture, but hasMoved below only tracks vertical
+    // movement, so a purely horizontal spin would read as "no movement" --
+    // if it ends outside the tile, handleClick() would then spuriously
+    // exitFocus() mid-drag. Starting/tracking the shirt's own drag state
+    // here instead avoids that, and leaves galleryEl's pointer capture and
+    // isDragging/pointerId untouched for this gesture entirely.
+    if (isFocused && focusedTile === shirtTile && e.target.closest(".tile.shirt")) {
+      shirtDragActive = true;
+      shirtDragPointerId = e.pointerId;
+      shirtDragLastX = e.clientX;
+      shirtDragLastY = e.clientY;
+      shirtSpinVelocity = 0; // grabbing it again kills any leftover release-momentum spin
       return;
     }
 
@@ -1803,7 +1855,30 @@ renderSongCollection(ALBUM);
     // Item 4 vinyl's orbit tracks the cursor via its own window pointermove
     // listener (see createManualOrbit() in vinyl-reveal.js), gated by its
     // own isFocusedFn -- nothing needed here.
-    if (isFocused && focusedTile === shirtTile) applyShirtTilt(e.clientX, e.clientY);
+    // Item 5 shirt only needs the drag-active check (set by the
+    // onPointerDown bypass below) -- not isFocused/focusedTile -- since a
+    // drag that started while focused should keep tracking the pointer even
+    // if it somehow ends up outside the tile mid-gesture.
+    if (shirtDragActive) updateShirtDrag(e.clientX, e.clientY);
+  });
+
+  // Ends a shirt drag on release no matter where the pointer is by then --
+  // mirrors the pointermove dispatcher above. The gallery's own onPointerUp
+  // (wired below) never sees this gesture at all: the onPointerDown bypass
+  // for the focused shirt tile returns before setting the gallery's shared
+  // isDragging/pointerId, so its `e.pointerId !== pointerId` guard always
+  // skips it.
+  window.addEventListener("pointerup", (e) => {
+    if (shirtDragActive && e.pointerId === shirtDragPointerId) {
+      shirtDragActive = false;
+      shirtDragPointerId = null;
+    }
+  });
+  window.addEventListener("pointercancel", (e) => {
+    if (shirtDragActive && e.pointerId === shirtDragPointerId) {
+      shirtDragActive = false;
+      shirtDragPointerId = null;
+    }
   });
 
   preloadImages();

@@ -1008,6 +1008,17 @@ body {
   transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* Drag-to-rotate affordance -- only reads as grabbable once focused, since
+   that's the only state the drag listener (onPointerDown's shirt bypass in
+   infinite-gallery.js) actually does anything. */
+.focused .tile.shirt .shirt-canvas {
+  cursor: grab;
+}
+
+.focused .tile.shirt .shirt-canvas:active {
+  cursor: grabbing;
+}
+
 .tile.shirt:hover .shirt-canvas {
   transform: scale(1.06);
 }
