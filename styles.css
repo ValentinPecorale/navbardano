@@ -757,50 +757,6 @@ body {
   display: none;
 }
 
-/* Shirt-only "at a glance" front/back flat preview -- a third flex child of
-   .focus-caption-wrapper, between the tile spacer and the caption text, so
-   it reads as sitting just under the focused 3D tile. Nested *inside*
-   .focus-caption-wrapper (not a new direct child of
-   .viewport-wrapper[data-viewport-wrapper-cms]) so it's outside the reach
-   of the :where() specificity-zeroing rule above and needs no position/
-   z-index fix of its own. display:none by default (not just opacity) so it
-   doesn't reserve a flex gap slot while any other tile is focused --
-   enterFocus()/exitFocus() toggle .is-visible only for the shirt tile. */
-.shirt-preview {
-  display: none;
-  flex: none;
-  gap: 16px;
-}
-
-.shirt-preview.is-visible {
-  display: flex;
-}
-
-.shirt-preview-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-}
-
-.shirt-preview-image {
-  width: 72px;
-  height: 72px;
-  object-fit: cover;
-  display: block;
-}
-
-.shirt-preview-label {
-  margin: 0;
-  font-family: "Montserrat", sans-serif;
-  font-weight: 500;
-  font-size: 12px;
-  line-height: 14px;
-  letter-spacing: -0.6px;
-  text-transform: uppercase;
-  color: #5c0000;
-}
-
 /* Infinite gallery -- ported from infinitegallerytraining, scoped to sit
    over the CMS section's red shader background (see .viewport-wrapper's
    #f51313 fallback above) instead of the whole browser viewport. The

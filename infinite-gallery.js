@@ -935,7 +935,6 @@ renderSongCollection(ALBUM);
     const captionWrapperEl = document.querySelector("[data-focus-caption-wrapper]");
     const captionSpacerEl = document.querySelector("[data-focus-caption-spacer]");
     const captionTextEl = document.querySelector("[data-focus-caption-text]");
-    const shirtPreviewEl = document.querySelector("[data-shirt-preview]");
     const description = getTileDescription(tile);
     let spacerRect = null;
     if (captionWrapperEl && captionSpacerEl && captionTextEl) {
@@ -944,12 +943,6 @@ renderSongCollection(ALBUM);
       captionTextEl.textContent = description || "";
       captionTextEl.classList.toggle("is-empty", !description);
       captionWrapperEl.classList.add("is-visible");
-      // Toggled before the rect read below -- .shirt-preview flips between
-      // display:none/flex, which changes the caption column's total height
-      // (an extra row + two more gaps) whenever the shirt tile is (or
-      // isn't) the one being focused, so the spacer's rect has to reflect
-      // that first, same reasoning as the caption text being set above it.
-      shirtPreviewEl?.classList.toggle("is-visible", !!tile.isShirt);
       // Forces a synchronous layout so this rect reflects the real flex
       // centering (tile-sized spacer + gap + this exact caption's rendered
       // height), not last frame's stale position.
@@ -1056,7 +1049,6 @@ renderSongCollection(ALBUM);
       shirtDragActive = false;
       shirtDragPointerId = null;
       shirtSpinVelocity = 0;
-      document.querySelector("[data-shirt-preview]")?.classList.remove("is-visible");
     }
 
     galleryEl.classList.remove("focused");
