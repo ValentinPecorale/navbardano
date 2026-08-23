@@ -1025,17 +1025,23 @@ body {
 
 /* Merch page -- a plain full-white page (no CMS gallery section), navbar
    identical to every other page. .merch-frame is the "96px top padding
-   only" frame the shop list sits in, per the Figma wrapper spec; the list
-   itself spans full width edge-to-edge (dividers included), with each row
-   indenting its own text -- matching the Figma component 1:1. */
+   only" frame the shop list sits in, per the Figma wrapper spec; height:100%
+   (not min-height) so the list's flex children have a real, bounded height
+   to grow/shrink within -- required for the accordion-expand behavior
+   below, matching node 66:1467's ISTMO row filling all remaining space
+   once open. */
 .merch-page {
   position: relative;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   background: var(--paper);
 }
 
 .merch-frame {
+  height: 100%;
   padding-top: 96px;
+  display: flex;
+  flex-direction: column;
 }
 
 .merch-page .footer-credit {
@@ -1046,6 +1052,8 @@ body {
 }
 
 .shop-list {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -1057,9 +1065,36 @@ body {
   flex: none;
 }
 
+/* Accordion: exactly one .shop-item open at a time (toggled in script.js).
+   Collapsed items sit at a fixed 72px (flex-basis, no grow); the open one
+   gets flex-grow so it fills whatever's left in .shop-list, same as the
+   Figma component's expanded "Shop" row being flex-[1_0_0]. Both the grow
+   and the black/white flip transition together on the same easing curve
+   already used elsewhere on this site (.nav-mobile-menu, hero collapse). */
+.shop-item {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 72px;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--paper);
+  transition: flex-grow 0.4s cubic-bezier(0.65, 0, 0.35, 1),
+    background-color 0.4s cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+.shop-item.is-expanded {
+  flex: 1 0 72px;
+  background: var(--ink);
+}
+
 .shop-row {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
   display: block;
+  flex: none;
   height: 72px;
+  width: 100%;
   padding: 8px 40px;
   font-family: "Cormorant", serif;
   font-weight: 400;
@@ -1067,10 +1102,88 @@ body {
   line-height: 56px;
   letter-spacing: -1.82px;
   color: var(--ink);
-  text-decoration: none;
-  transition: background-color 0.15s ease;
+  transition: color 0.4s cubic-bezier(0.65, 0, 0.35, 1);
 }
 
-.shop-row:hover {
+.shop-item:not(.is-expanded) .shop-row:hover {
   background: rgba(0, 0, 0, 0.04);
+}
+
+.shop-item.is-expanded .shop-row {
+  color: var(--paper);
+}
+
+.shop-products {
+  flex: 1;
+  min-height: 0;
+  padding: 0 40px 8px;
+  opacity: 0;
+  transition: opacity 0.3s ease 0.15s;
+}
+
+.shop-item.is-expanded .shop-products {
+  opacity: 1;
+}
+
+.shop-products-grid {
+  display: flex;
+  gap: 8px;
+  height: 100%;
+  width: 100%;
+}
+
+.product {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  flex: 1;
+  min-width: 0;
+}
+
+.product-image {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  border: 0.5px solid var(--paper);
+  overflow: hidden;
+  transition: border-width 0.15s ease;
+}
+
+.product:hover .product-image {
+  border-width: 1px;
+}
+
+.product-image img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.product-info {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-family: "Montserrat", sans-serif;
+  font-size: 12px;
+  line-height: 14px;
+  letter-spacing: -0.6px;
+  text-transform: uppercase;
+  color: var(--paper);
+}
+
+.product-name {
+  font-weight: 500;
+  text-align: justify;
+}
+
+.product-price {
+  font-weight: 700;
+  white-space: nowrap;
 }

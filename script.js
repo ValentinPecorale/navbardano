@@ -212,3 +212,24 @@ if (newViewportWrapperHero && viewportWrapperHero && viewportWrapperCms) {
     viewportWrapperCms.classList.remove("is-collapsed");
   });
 }
+
+// Merch page's shop-list accordion -- only exists on /merch, no-ops
+// (empty NodeList) everywhere else. Exactly one .shop-item open at a time:
+// clicking the open row's own title closes it back down; clicking another
+// row's title swaps which one is open. The CSS side (flex-grow + black/
+// white flip) lives in styles.css.
+const shopItems = document.querySelectorAll("[data-shop-item]");
+shopItems.forEach((item) => {
+  const toggle = item.querySelector("[data-shop-toggle]");
+  toggle?.addEventListener("click", () => {
+    const alreadyExpanded = item.classList.contains("is-expanded");
+    shopItems.forEach((other) => {
+      other.classList.remove("is-expanded");
+      other.querySelector("[data-shop-toggle]")?.setAttribute("aria-expanded", "false");
+    });
+    if (!alreadyExpanded) {
+      item.classList.add("is-expanded");
+      toggle.setAttribute("aria-expanded", "true");
+    }
+  });
+});
