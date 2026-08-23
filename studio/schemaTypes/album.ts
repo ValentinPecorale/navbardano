@@ -157,6 +157,33 @@ export const album = defineType({
       type: 'text',
       rows: 3,
     }),
+    defineField({
+      name: 'products',
+      title: 'Merch products',
+      description: 'Cards shown on the /merch page for this release.',
+      type: 'array',
+      of: [
+        defineField({
+          name: 'product',
+          title: 'Product',
+          type: 'object',
+          fields: [
+            defineField({name: 'name', title: 'Name', type: 'string', validation: (rule) => rule.required()}),
+            defineField({name: 'price', title: 'Price', type: 'string', validation: (rule) => rule.required()}),
+            defineField({name: 'image', title: 'Image', type: 'image', validation: (rule) => rule.required()}),
+            defineField({
+              name: 'alt',
+              title: 'Alt text',
+              description: 'Falls back to the product name if left empty.',
+              type: 'string',
+            }),
+          ],
+          preview: {
+            select: {title: 'name', subtitle: 'price', media: 'image'},
+          },
+        }),
+      ],
+    }),
   ],
   preview: {
     select: {title: 'title', subtitle: 'slug.current'},

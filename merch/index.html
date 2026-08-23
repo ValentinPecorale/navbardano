@@ -11,6 +11,13 @@
     rel="stylesheet"
   />
   <link rel="stylesheet" href="/styles.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "@sanity/client": "https://esm.sh/@sanity/client@6"
+      }
+    }
+  </script>
 </head>
 <body>
   <nav class="navbar" aria-label="Principal">
@@ -84,112 +91,28 @@
       <div class="shop-list" data-shop-list>
         <div class="shop-divider"></div>
 
-        <div class="shop-item" data-shop-item>
+        <div class="shop-item" data-shop-item data-shop-key="ehhpdsr">
           <button type="button" class="shop-row" data-shop-toggle aria-expanded="false">EHHPDSR</button>
           <div class="shop-products">
-            <div class="shop-products-grid">
-              <button type="button" class="product">
-                <div class="product-image">
-                  <img src="/assets/merch/product-vinyl.webp" alt="ISTMO (4ª Edición en Vinilo)" />
-                </div>
-                <div class="product-info">
-                  <span class="product-name">ISTMO (4ª Edición en Vinilo)</span>
-                  <span class="product-price">28,88 €</span>
-                </div>
-              </button>
-              <button type="button" class="product">
-                <div class="product-image">
-                  <img src="/assets/merch/product-tee.webp" alt="Camiseta ISTMO" />
-                </div>
-                <div class="product-info">
-                  <span class="product-name">Camiseta ISTMO</span>
-                  <span class="product-price">28,88 €</span>
-                </div>
-              </button>
-              <button type="button" class="product">
-                <div class="product-image">
-                  <img src="/assets/merch/product-cd.webp" alt="ISTMO — CD" />
-                </div>
-                <div class="product-info">
-                  <span class="product-name">ISTMO — CD</span>
-                  <span class="product-price">28,88 €</span>
-                </div>
-              </button>
-            </div>
+            <div class="shop-products-grid" data-shop-products-grid></div>
           </div>
         </div>
 
         <div class="shop-divider"></div>
 
-        <div class="shop-item" data-shop-item>
+        <div class="shop-item" data-shop-item data-shop-key="istmo">
           <button type="button" class="shop-row" data-shop-toggle aria-expanded="false">ISTMO</button>
           <div class="shop-products">
-            <div class="shop-products-grid">
-              <button type="button" class="product">
-                <div class="product-image">
-                  <img src="/assets/merch/product-vinyl.webp" alt="ISTMO (4ª Edición en Vinilo)" />
-                </div>
-                <div class="product-info">
-                  <span class="product-name">ISTMO (4ª Edición en Vinilo)</span>
-                  <span class="product-price">28,88 €</span>
-                </div>
-              </button>
-              <button type="button" class="product">
-                <div class="product-image">
-                  <img src="/assets/merch/product-tee.webp" alt="Camiseta ISTMO" />
-                </div>
-                <div class="product-info">
-                  <span class="product-name">Camiseta ISTMO</span>
-                  <span class="product-price">28,88 €</span>
-                </div>
-              </button>
-              <button type="button" class="product">
-                <div class="product-image">
-                  <img src="/assets/merch/product-cd.webp" alt="ISTMO — CD" />
-                </div>
-                <div class="product-info">
-                  <span class="product-name">ISTMO — CD</span>
-                  <span class="product-price">28,88 €</span>
-                </div>
-              </button>
-            </div>
+            <div class="shop-products-grid" data-shop-products-grid></div>
           </div>
         </div>
 
         <div class="shop-divider"></div>
 
-        <div class="shop-item" data-shop-item>
+        <div class="shop-item" data-shop-item data-shop-key="nuevos-trapos">
           <button type="button" class="shop-row" data-shop-toggle aria-expanded="false">NUEVOS TRAPOS</button>
           <div class="shop-products">
-            <div class="shop-products-grid">
-              <button type="button" class="product">
-                <div class="product-image">
-                  <img src="/assets/merch/product-vinyl.webp" alt="ISTMO (4ª Edición en Vinilo)" />
-                </div>
-                <div class="product-info">
-                  <span class="product-name">ISTMO (4ª Edición en Vinilo)</span>
-                  <span class="product-price">28,88 €</span>
-                </div>
-              </button>
-              <button type="button" class="product">
-                <div class="product-image">
-                  <img src="/assets/merch/product-tee.webp" alt="Camiseta ISTMO" />
-                </div>
-                <div class="product-info">
-                  <span class="product-name">Camiseta ISTMO</span>
-                  <span class="product-price">28,88 €</span>
-                </div>
-              </button>
-              <button type="button" class="product">
-                <div class="product-image">
-                  <img src="/assets/merch/product-cd.webp" alt="ISTMO — CD" />
-                </div>
-                <div class="product-info">
-                  <span class="product-name">ISTMO — CD</span>
-                  <span class="product-price">28,88 €</span>
-                </div>
-              </button>
-            </div>
+            <div class="shop-products-grid" data-shop-products-grid></div>
           </div>
         </div>
 
@@ -201,5 +124,6 @@
   </main>
 
   <script src="/script.js"></script>
+  <script type="module" src="/merch-products.js"></script>
 </body>
 </html>
