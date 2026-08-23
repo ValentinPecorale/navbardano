@@ -1022,3 +1022,55 @@ body {
 .tile.shirt:hover .shirt-canvas {
   transform: scale(1.06);
 }
+
+/* Merch page -- a plain full-white page (no CMS gallery section), navbar
+   identical to every other page. .merch-frame is the "96px top padding
+   only" frame the shop list sits in, per the Figma wrapper spec; the list
+   itself spans full width edge-to-edge (dividers included), with each row
+   indenting its own text -- matching the Figma component 1:1. */
+.merch-page {
+  position: relative;
+  min-height: 100vh;
+  background: var(--paper);
+}
+
+.merch-frame {
+  padding-top: 96px;
+}
+
+.merch-page .footer-credit {
+  position: absolute;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.shop-list {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.shop-divider {
+  height: var(--hairline);
+  background: var(--ink);
+  flex: none;
+}
+
+.shop-row {
+  display: block;
+  height: 72px;
+  padding: 8px 40px;
+  font-family: "Cormorant", serif;
+  font-weight: 400;
+  font-size: 91px;
+  line-height: 56px;
+  letter-spacing: -1.82px;
+  color: var(--ink);
+  text-decoration: none;
+  transition: background-color 0.15s ease;
+}
+
+.shop-row:hover {
+  background: rgba(0, 0, 0, 0.04);
+}

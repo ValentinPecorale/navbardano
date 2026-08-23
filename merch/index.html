@@ -3,35 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Ehhpdsr — Dano Ziontifik</title>
+  <title>Merch — Dano Ziontifik</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
     href="https://fonts.googleapis.com/css2?family=Cormorant:wght@400&family=Montserrat:wght@500&display=swap"
     rel="stylesheet"
   />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Cormorant:wght@700&display=swap"
-    rel="stylesheet"
-  />
   <link rel="stylesheet" href="/styles.css" />
-  <script type="importmap">
-    {
-      "imports": {
-        "three": "https://cdn.jsdelivr.net/npm/three@0.183.0/build/three.module.js",
-        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.183.0/examples/jsm/",
-        "three/examples/jsm/": "https://cdn.jsdelivr.net/npm/three@0.183.0/examples/jsm/",
-        "three/tsl": "https://cdn.jsdelivr.net/npm/three@0.183.0/build/three.tsl.js",
-        "three/webgpu": "https://cdn.jsdelivr.net/npm/three@0.183.0/build/three.webgpu.js",
-        "react": "https://esm.sh/react@19.0.0",
-        "react/jsx-runtime": "https://esm.sh/react@19.0.0/jsx-runtime",
-        "react-dom": "https://esm.sh/react-dom@19.0.0",
-        "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
-        "@basementstudio/shader-lab": "https://cdn.jsdelivr.net/npm/@basementstudio/shader-lab@2.0.0/dist/src/index.js",
-        "@sanity/client": "https://esm.sh/@sanity/client@6"
-      }
-    }
-  </script>
 </head>
 <body>
   <nav class="navbar" aria-label="Principal">
@@ -100,45 +79,22 @@
     <audio data-equalizer-audio preload="none"></audio>
   </nav>
 
-  <!-- No hero section on this page -- ISTMO (served at /) is the only page
-       with the hero/lyrics; every other album goes straight to its gallery.
-       See index.html for the hero + why. -->
-  <div class="viewport-wrapper" data-viewport-wrapper-cms>
-    <canvas class="bg-shader-cms" data-bg-shader-cms aria-hidden="true"></canvas>
-
-    <div id="gallery">
-      <div id="canvas"></div>
-    </div>
-
-    <div class="wrapper">
-      <div class="song-collection">
-        <div class="song-list">
-          <div class="song-row">
-            <p class="song-number">01</p>
-            <p class="song-title">Track title</p>
-          </div>
-        </div>
-        <p class="song-description">
-          Add this album's songs and description in Sanity Studio (/studio) -- this placeholder
-          shows until real content is filled in.
-        </p>
+  <main class="merch-page">
+    <div class="merch-frame">
+      <div class="shop-list">
+        <div class="shop-divider"></div>
+        <a class="shop-row" href="/albums/ehhpdsr">EHHPDSR</a>
+        <div class="shop-divider"></div>
+        <a class="shop-row" href="/">ISTMO</a>
+        <div class="shop-divider"></div>
+        <a class="shop-row" href="/albums/nuevos-trapos">NUEVOS TRAPOS</a>
+        <div class="shop-divider"></div>
       </div>
     </div>
 
     <p class="footer-credit">DANO ZIONTIFIK © 2026</p>
+  </main>
 
-    <div class="focus-caption-wrapper" data-focus-caption-wrapper>
-      <div class="focus-caption-spacer" data-focus-caption-spacer></div>
-      <p class="focus-caption-text" data-focus-caption-text></p>
-    </div>
-  </div>
-
-  <script>
-    // Read by script.js (nav active-state) and infinite-gallery.js (which
-    // album's Sanity content to fetch) -- must be set before either loads.
-    window.ALBUM_SLUG = "ehhpdsr";
-  </script>
   <script src="/script.js"></script>
-  <script type="module" src="/infinite-gallery.js"></script>
 </body>
 </html>
