@@ -3,6 +3,12 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 import { createVinylReveal } from "./vinyl-reveal.js";
 import { createClient } from "@sanity/client";
+import {
+  getSongAudioEl,
+  setEqualizerPlaying,
+  startSongAudio,
+  pauseSongAudio,
+} from "./song-player.js";
 
 // ---------------------------------------------------------------------
 // Album content -- fetched from Sanity (see /studio for the Studio +
@@ -125,65 +131,18 @@ async function fetchAlbum(slug) {
 // clicking a song row picks that song; clicking the rhythm icon (script.js
 // calls window.songPlayer.toggle(), since it's a separate, non-module script
 // with no direct access to album data) just plays/pauses whatever's current,
-// picking a random playable song first if none has been chosen yet.
+// picking a random playable song first if none has been chosen yet. The
+// fade/equalizer-state mechanics live in song-player.js, shared with
+// merch-song-player.js's cross-album random pick on non-album pages.
 // Module-level like ALBUM itself -- only one page/album is ever loaded at a
 // time, so one "current song" is all this ever needs to track.
 // ---------------------------------------------------------------------
 let currentAlbumSongs = [];
 let currentSongIndex = null;
-let fadeRAF = null;
-
-function getSongAudioEl() {
-  return document.querySelector("[data-equalizer-audio]");
-}
-
-function fadeSongAudio(audio, targetVolume, duration, onComplete) {
-  cancelAnimationFrame(fadeRAF);
-  const startVolume = audio.volume;
-  const startTime = performance.now();
-  function step(now) {
-    const t = Math.min((now - startTime) / duration, 1);
-    audio.volume = startVolume + (targetVolume - startVolume) * t;
-    if (t < 1) {
-      fadeRAF = requestAnimationFrame(step);
-    } else {
-      onComplete?.();
-    }
-  }
-  fadeRAF = requestAnimationFrame(step);
-}
-
-const SONG_FADE_MS = 600;
-
-function setEqualizerPlaying(isPlaying) {
-  const equalizer = document.querySelector("[data-equalizer]");
-  if (!equalizer) return;
-  equalizer.classList.toggle("is-playing", isPlaying);
-  equalizer.setAttribute("aria-pressed", String(isPlaying));
-  equalizer.setAttribute(
-    "aria-label",
-    isPlaying ? "Pausar reproductor de música" : "Reproducir reproductor de música"
-  );
-}
 
 function highlightSongRow(index, isPlaying) {
   if (index === null) return;
   document.querySelector(`.song-row[data-song-index="${index}"]`)?.classList.toggle("is-playing", isPlaying);
-}
-
-function startSongAudio(audio) {
-  audio.volume = 0;
-  audio.play();
-  fadeSongAudio(audio, 1, SONG_FADE_MS);
-  setEqualizerPlaying(true);
-}
-
-function pauseSongAudio(audio) {
-  fadeSongAudio(audio, 0, SONG_FADE_MS, () => {
-    audio.pause();
-    audio.volume = 1;
-  });
-  setEqualizerPlaying(false);
 }
 
 // Row click: pick this exact song. Same song clicked again toggles
