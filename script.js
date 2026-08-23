@@ -233,3 +233,63 @@ shopItems.forEach((item) => {
     }
   });
 });
+
+// Merch page's product carousel -- drag-to-scroll + wheel-to-horizontal on
+// each .shop-products-grid row (native scrollbar hidden in styles.css).
+// Pointer Events + setPointerCapture, same convention as #gallery's drag
+// in infinite-gallery.js. Touch pointers are left alone -- overflow-x:auto
+// already gives them free native swipe-scroll, and running this drag logic
+// on top of that would fight the browser's own touch-scroll momentum.
+document.querySelectorAll("[data-shop-products-grid]").forEach((grid) => {
+  let pointerId = null;
+  let startX = 0;
+  let startScrollLeft = 0;
+  let hasMoved = false;
+
+  grid.addEventListener("pointerdown", (e) => {
+    if (e.pointerType === "touch") return;
+    pointerId = e.pointerId;
+    startX = e.clientX;
+    startScrollLeft = grid.scrollLeft;
+    hasMoved = false;
+    grid.setPointerCapture(pointerId);
+    grid.classList.add("dragging");
+  });
+
+  grid.addEventListener("pointermove", (e) => {
+    if (e.pointerId !== pointerId) return;
+    const dx = e.clientX - startX;
+    if (Math.abs(dx) > 3) hasMoved = true;
+    grid.scrollLeft = startScrollLeft - dx;
+  });
+
+  function endDrag(e) {
+    if (e.pointerId !== pointerId) return;
+    grid.releasePointerCapture(pointerId);
+    grid.classList.remove("dragging");
+    pointerId = null;
+  }
+  grid.addEventListener("pointerup", endDrag);
+  grid.addEventListener("pointercancel", endDrag);
+
+  grid.addEventListener(
+    "click",
+    (e) => {
+      if (hasMoved) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    },
+    { capture: true }
+  );
+
+  grid.addEventListener(
+    "wheel",
+    (e) => {
+      if (grid.scrollWidth <= grid.clientWidth) return;
+      e.preventDefault();
+      grid.scrollLeft += e.deltaY;
+    },
+    { passive: false }
+  );
+});

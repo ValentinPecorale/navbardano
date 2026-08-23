@@ -1129,6 +1129,16 @@ body {
   gap: 8px;
   width: 100%;
   overflow-x: auto;
+  scrollbar-width: none;
+  cursor: grab;
+}
+
+.shop-products-grid::-webkit-scrollbar {
+  display: none;
+}
+
+.shop-products-grid.dragging {
+  cursor: grabbing;
 }
 
 .product {
