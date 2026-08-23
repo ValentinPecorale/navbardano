@@ -1070,7 +1070,7 @@ body {
 .shop-item {
   display: grid;
   grid-template-rows: 72px 0fr;
-  gap: 8px;
+  gap: 24px;
   padding: 24px 0;
   background: var(--paper);
   transition: grid-template-rows 0.4s cubic-bezier(0.65, 0, 0.35, 1),
