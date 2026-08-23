@@ -1118,10 +1118,15 @@ body {
   opacity: 1;
 }
 
+/* Product images are a fixed 547x547 on desktop (Figma spec, not fluid) --
+   most laptop widths can't fit 3 of those plus gaps/padding, so the row
+   scrolls horizontally rather than shrinking the images. Mobile keeps the
+   same scrollable-row mechanism at a smaller fixed size (280px) below. */
 .shop-products-grid {
   display: flex;
   gap: 8px;
   width: 100%;
+  overflow-x: auto;
 }
 
 .product {
@@ -1131,12 +1136,12 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  flex: 1;
-  min-width: 0;
+  flex: 0 0 547px;
 }
 
 .product-image {
-  aspect-ratio: 1 / 1;
+  width: 547px;
+  height: 547px;
   position: relative;
   border: 0.5px solid var(--paper);
   overflow: hidden;
@@ -1176,4 +1181,15 @@ body {
 .product-price {
   font-weight: 700;
   white-space: nowrap;
+}
+
+@media (max-width: 680px) {
+  .product {
+    flex-basis: 280px;
+  }
+
+  .product-image {
+    width: 280px;
+    height: 280px;
+  }
 }
