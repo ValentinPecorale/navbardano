@@ -1100,7 +1100,7 @@ body {
   transition: color 0.4s cubic-bezier(0.65, 0, 0.35, 1);
 }
 
-.shop-item:not(.is-expanded) .shop-row:hover {
+.shop-item:not(.is-expanded):hover {
   background: rgba(0, 0, 0, 0.04);
 }
 
