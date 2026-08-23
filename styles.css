@@ -1174,8 +1174,10 @@ body {
 }
 
 .product-name {
+  flex: 0 1 auto;
+  min-width: 0;
   font-weight: 500;
-  text-align: justify;
+  text-align: left;
 }
 
 .product-price {
