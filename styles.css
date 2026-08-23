@@ -1024,36 +1024,28 @@ body {
 }
 
 /* Merch page -- a plain full-white page (no CMS gallery section), navbar
-   identical to every other page. .merch-frame is the "96px top padding
-   only" frame the shop list sits in, per the Figma wrapper spec; height:100%
-   (not min-height) so the list's flex children have a real, bounded height
-   to grow/shrink within -- required for the accordion-expand behavior
-   below, matching node 66:1467's ISTMO row filling all remaining space
-   once open. */
+   identical to every other page. Sized to its content, not the viewport:
+   .shop-item rows are a fixed 72px collapsed and grow to their product
+   grid's own intrinsic height (aspect-ratio images, not a flex-fill) once
+   expanded, so the page can genuinely exceed 100vh and scroll -- rather
+   than the old height:100vh/overflow:hidden wrapper that capped every
+   row's expansion at whatever was left inside one screen. */
 .merch-page {
   position: relative;
-  height: 100vh;
-  overflow: hidden;
   background: var(--paper);
 }
 
 .merch-frame {
-  height: 100%;
   padding-top: 96px;
   display: flex;
   flex-direction: column;
 }
 
 .merch-page .footer-credit {
-  position: absolute;
-  bottom: 32px;
-  left: 50%;
-  transform: translateX(-50%);
+  margin: 32px 0;
 }
 
 .shop-list {
-  flex: 1;
-  min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -1066,24 +1058,25 @@ body {
 }
 
 /* Accordion: exactly one .shop-item open at a time (toggled in script.js).
-   Collapsed items sit at a fixed 72px (flex-basis, no grow); the open one
-   gets flex-grow so it fills whatever's left in .shop-list, same as the
-   Figma component's expanded "Shop" row being flex-[1_0_0]. Both the grow
-   and the black/white flip transition together on the same easing curve
-   already used elsewhere on this site (.nav-mobile-menu, hero collapse). */
+   A 2-row grid -- row 1 is the fixed 72px title row, row 2 (the product
+   grid) animates 0fr -> 1fr, the standard CSS-only technique for
+   transitioning to/from an auto/content height (plain height transitions
+   can't interpolate against "auto"). Row 2's actual height when open is
+   whatever .shop-products' own content wants (see .product-image's
+   aspect-ratio below) -- not a fill-remaining-space grow -- so an open
+   row can genuinely push the page past 100vh. Grid-row and black/white
+   flip transition together on the same easing curve already used
+   elsewhere on this site (.nav-mobile-menu, hero collapse). */
 .shop-item {
-  display: flex;
-  flex-direction: column;
-  flex: 0 0 72px;
-  min-height: 0;
-  overflow: hidden;
+  display: grid;
+  grid-template-rows: 72px 0fr;
   background: var(--paper);
-  transition: flex-grow 0.4s cubic-bezier(0.65, 0, 0.35, 1),
+  transition: grid-template-rows 0.4s cubic-bezier(0.65, 0, 0.35, 1),
     background-color 0.4s cubic-bezier(0.65, 0, 0.35, 1);
 }
 
 .shop-item.is-expanded {
-  flex: 1 0 72px;
+  grid-template-rows: 72px 1fr;
   background: var(--ink);
 }
 
@@ -1114,8 +1107,8 @@ body {
 }
 
 .shop-products {
-  flex: 1;
   min-height: 0;
+  overflow: hidden;
   padding: 0 40px 8px;
   opacity: 0;
   transition: opacity 0.3s ease 0.15s;
@@ -1128,7 +1121,6 @@ body {
 .shop-products-grid {
   display: flex;
   gap: 8px;
-  height: 100%;
   width: 100%;
 }
 
@@ -1139,14 +1131,12 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  height: 100%;
   flex: 1;
   min-width: 0;
 }
 
 .product-image {
-  flex: 1;
-  min-height: 0;
+  aspect-ratio: 1 / 1;
   position: relative;
   border: 0.5px solid var(--paper);
   overflow: hidden;
