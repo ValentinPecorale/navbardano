@@ -1163,7 +1163,7 @@ body {
 .product-info {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 8px;
   font-family: "Montserrat", sans-serif;
   font-size: 12px;
