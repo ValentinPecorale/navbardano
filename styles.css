@@ -1070,6 +1070,8 @@ body {
 .shop-item {
   display: grid;
   grid-template-rows: 72px 0fr;
+  gap: 8px;
+  padding: 8px 0;
   background: var(--paper);
   transition: grid-template-rows 0.4s cubic-bezier(0.65, 0, 0.35, 1),
     background-color 0.4s cubic-bezier(0.65, 0, 0.35, 1);
@@ -1126,7 +1128,6 @@ body {
   display: flex;
   gap: 8px;
   width: 100%;
-  padding: 8px 0;
   overflow-x: auto;
 }
 
