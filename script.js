@@ -246,6 +246,12 @@ document.querySelectorAll("[data-shop-products-grid]").forEach((grid) => {
   let startScrollLeft = 0;
   let hasMoved = false;
 
+  // Images are natively draggable in every browser -- without this, a
+  // pointerdown+move that starts on a product photo kicks off the browser's
+  // own ghost-image drag instead of ours, which swallows the gesture and
+  // is exactly why dragging worked over the text but not the image.
+  grid.addEventListener("dragstart", (e) => e.preventDefault());
+
   grid.addEventListener("pointerdown", (e) => {
     if (e.pointerType === "touch") return;
     pointerId = e.pointerId;
