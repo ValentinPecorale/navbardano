@@ -1130,7 +1130,6 @@ body {
   width: 100%;
   overflow-x: auto;
   scrollbar-width: none;
-  scroll-behavior: smooth;
   cursor: grab;
 }
 
@@ -1139,7 +1138,6 @@ body {
 }
 
 .shop-products-grid.dragging {
-  scroll-behavior: auto;
   cursor: grabbing;
   user-select: none;
 }

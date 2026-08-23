@@ -252,8 +252,40 @@ document.querySelectorAll("[data-shop-products-grid]").forEach((grid) => {
   // is exactly why dragging worked over the text but not the image.
   grid.addEventListener("dragstart", (e) => e.preventDefault());
 
+  // Wheel easing: a single self-owned rAF loop chasing a running
+  // scrollTarget, not CSS scroll-behavior:smooth -- a real mouse wheel
+  // fires many discrete deltaY ticks per gesture, and smooth-scrolling
+  // via scrollLeft assignment restarts a competing native animation on
+  // every one of them, which is what made the scroll feel broken/stuck.
+  // 0.18 = how much of the remaining distance to close per frame
+  // (~60fps); ends a typical wheel tick in well under half a second.
+  const WHEEL_EASE = 0.18;
+  let scrollTarget = grid.scrollLeft;
+  let easeFrame = null;
+
+  function maxScrollLeft() {
+    return grid.scrollWidth - grid.clientWidth;
+  }
+
+  function stepEase() {
+    const current = grid.scrollLeft;
+    const distance = scrollTarget - current;
+    if (Math.abs(distance) < 0.5) {
+      grid.scrollLeft = scrollTarget;
+      easeFrame = null;
+      return;
+    }
+    grid.scrollLeft = current + distance * WHEEL_EASE;
+    easeFrame = requestAnimationFrame(stepEase);
+  }
+
   grid.addEventListener("pointerdown", (e) => {
     if (e.pointerType === "touch") return;
+    if (easeFrame) {
+      cancelAnimationFrame(easeFrame);
+      easeFrame = null;
+    }
+    scrollTarget = grid.scrollLeft;
     pointerId = e.pointerId;
     startX = e.clientX;
     startScrollLeft = grid.scrollLeft;
@@ -273,6 +305,7 @@ document.querySelectorAll("[data-shop-products-grid]").forEach((grid) => {
     if (e.pointerId !== pointerId) return;
     grid.releasePointerCapture(pointerId);
     grid.classList.remove("dragging");
+    scrollTarget = grid.scrollLeft;
     pointerId = null;
   }
   grid.addEventListener("pointerup", endDrag);
@@ -294,7 +327,8 @@ document.querySelectorAll("[data-shop-products-grid]").forEach((grid) => {
     (e) => {
       if (grid.scrollWidth <= grid.clientWidth) return;
       e.preventDefault();
-      grid.scrollLeft += e.deltaY;
+      scrollTarget = Math.min(Math.max(scrollTarget + e.deltaY, 0), maxScrollLeft());
+      if (!easeFrame) easeFrame = requestAnimationFrame(stepEase);
     },
     { passive: false }
   );
